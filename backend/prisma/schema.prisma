@@ -1,6 +1,7 @@
-// Prisma 6 · configuración mínima de la Fase 1.
-// El modelo de datos de pacientes e historias llega en la Fase 2 (ver specs/03-esquema-bd.md).
-// Este archivo es la FUENTE DE VERDAD del modelo: si el código y el esquema discrepan, gana el esquema.
+//FUENTE DE VERDAD del modelo de datos. Si el código y este esquema discrepan, gana el esquema.
+// Especificación: specs/03-esquema-bd.md §1-§4. Convenciones: modelos PascalCase con @@map a
+// snake_case, campos camelCase con @map, created_at/updated_at en toda tabla de negocio,
+// onDelete explícito en cada FK (Restrict en dato clínico o de autoría, SetNull en accesorio).
 
 generator client {
   provider = "prisma-client-js"
@@ -9,4 +10,253 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+  // Base de pruebas efímera que usa `prisma migrate dev` para detectar drift. Es un esquema
+  // propio con su propia clave, para no abrirle al usuario de aplicación permiso de crear
+  // bases. No contiene datos: Prisma la borra y la recrea en cada `migrate dev`.
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// ── Enumeraciones ───────────────────────────────────────────────────────────
+
+enum Sexo {
+  F
+  M
+  X
+  SIN_DATOS
+}
+
+enum Rol {
+  MEDICO
+  COORDINADOR
+  ADMIN
+}
+
+enum TipoRepresentante {
+  PERSONA
+  ORGANIZACION
+  EFECTOR
+}
+
+enum EstadoHistoria {
+  ACTIVA
+  CERRADA
+  ANULADA
+}
+
+enum TipoIngreso {
+  CONSULTA
+  EMERGENCIA
+  CONTROL
+  DERIVACION
+}
+
+// ── Entidad de usuario ─────────────────────────────────────────────────────
+
+/// Doble función: entidad profesional y tabla de usuarios (specs/03 §3.4).
+/// El login es por `email`, que es UNIQUE.
+model MedicoVoluntario {
+  id           BigInt    @id @default(autoincrement())
+  nombre       String    @db.VarChar(80)
+  apellido     String    @db.VarChar(80)
+  documento    String    @unique @db.VarChar(20)
+  email        String    @unique @db.VarChar(120)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  matricula    String?   @unique @db.VarChar(40)
+  especialidad String?   @db.VarChar(80)
+  telefono     String?   @db.VarChar(30)
+  rol          Rol       @default(MEDICO)
+  activo       Boolean   @default(true)
+  ultimoAcceso DateTime? @map("ultimo_acceso") @db.DateTime
+  createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+
+  historias         HistoriaClinica[]
+  evoluciones      Evolucion[]
+  pacientesCreados Paciente[]         @relation("PacienteCreadoPor")
+
+  @@index([activo], map: "ix_mv_activo")
+  @@index([apellido], map: "ix_mv_apellido")
+  @@map("medicos_voluntarios")
+}
+
+// ── Bloque B del formulario ────────────────────────────────────────────────
+
+/// Bloque B: datos de identificación. Es la entidad que persiste entre ingresos.
+/// `numeroHistoria` NO tiene AUTO_INCREMENT: se deriva de `id` (DI-02, ver specs/03 §3.1).
+/// Queda nullable en el esquema porque MySQL no permite escribir el id en la misma columna
+/// AUTO_INCREMENT dentro del INSERT; se completa en un segundo paso de la misma transacción.
+model Paciente {
+  id               BigInt    @id @default(autoincrement())
+  numeroHistoria   Int?      @unique @map("numero_historia") @db.UnsignedInt
+  apellido         String    @db.VarChar(80)
+  nombre           String    @db.VarChar(80)
+  documento        String?   @unique @db.VarChar(20)
+  tipoDocumentoId  BigInt?   @map("tipo_documento_id")
+  edad             Int       @db.TinyInt
+  sexo             Sexo      @default(SIN_DATOS)
+  estadoCivilId    BigInt?   @map("estado_civil_id")
+  fechaNacimiento  DateTime? @map("fecha_nacimiento") @db.Date
+  nacionalidadId   BigInt?   @map("nacionalidad_id")
+  domicilio        String?   @db.VarChar(200)
+  telefono         String?   @db.VarChar(30)
+  sinDomicilioFijo Boolean   @default(false) @map("sin_domicilio_fijo")
+  observaciones    String?   @db.Text
+  activo           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  createdBy        BigInt?   @map("created_by")
+
+  estadoCivil   EstadoCivil?   @relation(fields: [estadoCivilId], references: [id], onDelete: Restrict)
+  nacionalidad  Nacionalidad? @relation(fields: [nacionalidadId], references: [id], onDelete: SetNull)
+  tipoDocumento TipoDocumento? @relation(fields: [tipoDocumentoId], references: [id], onDelete: SetNull)
+  creadoPor     MedicoVoluntario? @relation("PacienteCreadoPor", fields: [createdBy], references: [id], onDelete: SetNull)
+  historias     HistoriaClinica[]
+
+  @@index([apellido, nombre], map: "ix_pacientes_apellido_nombre")
+  @@index([documento], map: "ix_pacientes_documento_bt")
+  @@index([activo], map: "ix_pacientes_activo")
+  @@index([nacionalidadId], map: "ix_pacientes_nacionalidad")
+  @@map("pacientes")
+}
+
+// ── Bloques A y C del formulario ───────────────────────────────────────────
+
+/// Un registro por atención o ingreso. `edadRegistrada` congela la edad del paciente
+/// en ese ingreso (RN-02): sin ella, la impresión de una historia vieja mostraría
+/// una edad que el paciente ya no tiene.
+model HistoriaClinica {
+  id                 BigInt         @id @default(autoincrement())
+  pacienteId         BigInt         @map("paciente_id")
+  fecha              DateTime       @default(now())
+  edadRegistrada     Int            @map("edad_registrada") @db.TinyInt
+  motivoConsulta     String         @map("motivo_consulta") @db.Text
+  representanteId     BigInt?        @map("representante_id")
+  operativoId        BigInt?        @map("operativo_id")
+  estado             EstadoHistoria @default(ACTIVA)
+  tipoIngreso        TipoIngreso    @default(CONSULTA) @map("tipo_ingreso")
+  resumen            String?        @db.Text
+  fechaCierre        DateTime?      @map("fecha_cierre") @db.DateTime
+  motivoCierre       String?        @map("motivo_cierre") @db.VarChar(200)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  medicoVoluntarioId BigInt         @map("medico_voluntario_id")
+
+  paciente     Paciente         @relation(fields: [pacienteId], references: [id], onDelete: Restrict)
+  representante Representante?   @relation(fields: [representanteId], references: [id], onDelete: SetNull)
+  operativo    Operativo?      @relation(fields: [operativoId], references: [id], onDelete: SetNull)
+  medico       MedicoVoluntario @relation(fields: [medicoVoluntarioId], references: [id], onDelete: Restrict)
+  evoluciones  Evolucion[]
+
+  @@index([pacienteId, fecha(sort: Desc)], map: "ix_hc_paciente_fecha")
+  @@index([fecha], map: "ix_hc_fecha")
+  @@index([estado], map: "ix_hc_estado")
+  @@index([medicoVoluntarioId], map: "ix_hc_medico")
+  @@index([operativoId], map: "ix_hc_operativo")
+  @@map("historias_clinicas")
+}
+
+// ── Bloque D del formulario ────────────────────────────────────────────────
+
+/// Anotaciones clínicas dentro de un ingreso (RN-05). `detalle` y `fecha` no se actualizan
+/// una vez insertados (RF-02.2): la capa de aplicación no expone PATCH sobre ellos.
+model Evolucion {
+  id                 BigInt   @id @default(autoincrement())
+  historiaClinicaId  BigInt   @map("historia_clinica_id")
+  fecha              DateTime @default(now())
+  detalle            String   @db.Text
+  medicoVoluntarioId BigInt   @map("medico_voluntario_id")
+  anulada            Boolean  @default(false)
+  motivoAnulacion    String?  @map("motivo_anulacion") @db.VarChar(200)
+  createdAt          DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  historiaClinica HistoriaClinica @relation(fields: [historiaClinicaId], references: [id], onDelete: Restrict)
+  medico          MedicoVoluntario @relation(fields: [medicoVoluntarioId], references: [id], onDelete: Restrict)
+
+  @@index([historiaClinicaId, fecha(sort: Desc)], map: "ix_ev_hc_fecha")
+  @@index([fecha], map: "ix_ev_fecha")
+  @@index([medicoVoluntarioId], map: "ix_ev_medico")
+  @@map("evoluciones")
+}
+
+// ── Tablas de soporte ──────────────────────────────────────────────────────
+
+/// Nexo de contacto del paciente (RN-03). Se modela aparte porque un mismo representante
+/// acompaña a muchos pacientes.
+model Representante {
+  id        BigInt             @id @default(autoincrement())
+  nombre    String             @db.VarChar(120)
+  tipo      TipoRepresentante  @default(PERSONA)
+  documento String?            @db.VarChar(20)
+  telefono  String?            @db.VarChar(30)
+  email     String?            @db.VarChar(120)
+  vinculo   String?            @db.VarChar(80)
+  direccion String?            @db.VarChar(200)
+  createdAt DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime           @updatedAt @map("updated_at") @db.DateTime(3)
+
+  historias HistoriaClinica[]
+
+  @@index([nombre], map: "ix_representantes_nombre")
+  @@index([documento], map: "ix_representantes_documento")
+  @@map("representantes")
+}
+
+model EstadoCivil {
+  id        BigInt   @id @default(autoincrement())
+  nombre    String   @unique @db.VarChar(40)
+  orden     Int      @default(0) @db.TinyInt
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  pacientes Paciente[]
+
+  @@map("estados_civiles")
+}
+
+model Nacionalidad {
+  id        BigInt   @id @default(autoincrement())
+  nombre    String   @unique @db.VarChar(60)
+  codigoIso String?  @unique @map("codigo_iso") @db.Char(3)
+  orden     Int      @default(0) @db.TinyInt
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  pacientes Paciente[]
+
+  @@map("nacionalidades")
+}
+
+/// Responde la pregunta 2 de specs/01 §12: la población atendida mayoritariamente no tiene
+/// DNI, y "Sin documento" tiene que ser un dato explícito y no un campo vacío.
+model TipoDocumento {
+  id             BigInt   @id @default(autoincrement())
+  nombre         String   @unique @db.VarChar(60)
+  sigla          String?  @db.VarChar(10)
+  requiereNumero Boolean  @default(true) @map("requiere_numero")
+  orden          Int      @default(0) @db.TinyInt
+  activo         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  pacientes Paciente[]
+
+  @@map("tipos_documento")
+}
+
+/// Puestos de atención. Los ítems reales los define la organización (B-7): el seed no
+/// inventa datos. La API llega en la Fase 6.
+model Operativo {
+  id        BigInt   @id @default(autoincrement())
+  nombre    String   @unique @db.VarChar(80)
+  direccion String?  @db.VarChar(200)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  historias HistoriaClinica[]
+
+  @@map("operativos")
 }

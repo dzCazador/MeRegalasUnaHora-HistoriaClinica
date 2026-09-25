@@ -1,8 +1,12 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
+import { BigintInterceptor } from './common/interceptors/bigint.interceptor.js';
+import { RespuestaInterceptor } from './common/interceptors/respuesta.interceptor.js';
+import { FiltroExcepcion } from './common/filters/filtro-excepcion.filter.js';
+import { PrismaExcepcionFilter } from './common/filters/prisma-excepcion.filter.js';
 
 const logger = new Logger('Bootstrap');
 
@@ -41,6 +45,15 @@ async function bootstrap(): Promise<void> {
     allowedHeaders: ENCABEZADOS_PERMITIDOS,
     maxAge: 3600,
   });
+
+  // Orden de los interceptors: `Bigint` primero, porque la respuesta envuelta en
+  // `{ success, data }` también tiene que bajar los ids a `number` (DI-03).
+  app.useGlobalInterceptors(new BigintInterceptor(), new RespuestaInterceptor(new Reflector()));
+
+  // Nest evalúa los filters globales en orden INVERSO al de registro, así que el
+  // catch-all va primero y el de Prisma último: si fuera al revés, `FiltroExcepcion`
+  // se quedaría con todos los P2002/P2025 y devolvería 500 en vez de 409/404.
+  app.useGlobalFilters(new FiltroExcepcion(), new PrismaExcepcionFilter());
 
   const configuracionSwagger = new DocumentBuilder()
     .setTitle('MeRegalasUnaHora — API de Historias Clínicas')

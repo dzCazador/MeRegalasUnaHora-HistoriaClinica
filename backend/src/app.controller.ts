@@ -3,6 +3,7 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { AppService } from './app.service.js';
 import { Public } from './common/decorators/public.decorator.js';
+import { Crudo } from './common/decorators/crudo.decorator.js';
 import { HealthResponseDto } from './common/dto/health-response.dto.js';
 
 @ApiTags('health')
@@ -11,6 +12,7 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Public()
+  @Crudo()
   @Get()
   @ApiOperation({
     summary: 'Estado del servicio y de la base de datos',

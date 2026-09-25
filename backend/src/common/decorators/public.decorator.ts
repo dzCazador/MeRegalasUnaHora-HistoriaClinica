@@ -1,11 +1,10 @@
 import { SetMetadata } from '@nestjs/common';
 
-export const CLAVE_PUBLICO = 'esPublico';
+export const PUBLICO_KEY = 'publico';
 
 /**
- * Marca un endpoint como público, exento del JwtAuthGuard global.
- *
- * Solo `POST /api/auth/login` y `GET /api/health` pueden usar este decorator.
- * Cualquier otro caso es una violation de la prohibicion 3 de AGENTS.md.
+ * Marca un endpoint como público, salteando el `JwtAuthGuard` global.
+ * Los únicos permitidos son `POST /api/auth/login` y `GET /api/health`
+ * (prohibición 3 de AGENTS.md).
  */
-export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(CLAVE_PUBLICO, true);
+export const Public = () => SetMetadata(PUBLICO_KEY, true);

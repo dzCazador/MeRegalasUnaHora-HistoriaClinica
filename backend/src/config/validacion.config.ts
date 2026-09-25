@@ -5,7 +5,7 @@ const ORIGEN_VALIDO = /^https?:\/\/[^/\s]+$/;
 export const configuracionValidacion = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
 
-  PORT: Joi.number().port().default(4000),
+  PORT: Joi.number().port().default(4001),
 
   DATABASE_URL: Joi.string()
     .pattern(/^mysql:\/\/[^@]+@[^:]*(?::\d+)?\/[^?]+/)
@@ -52,12 +52,20 @@ export const configuracionValidacion = Joi.object({
       'cors.invalido': '"CORS_ORIGINS" contiene un origen inválido: "{{#origen}}"',
     }),
 
-  // Nomenclatura en revisión: el spec (fase-02, tarea 2.2.6) usa ADMIN_EMAIL /
-  // ADMIN_NOMBRE / ADMIN_PASSWORD y login por email. Ver bloqueo B-8 en
-  // specs/fases/ESTADO.md. La Fase 1 no lee estas variables.
-  AUTH_USERNAME: Joi.string().optional(),
-  AUTH_PASSWORD: Joi.string().optional(),
-  ADMIN_EMAIL: Joi.string().email().optional(),
-  ADMIN_NOMBRE: Joi.string().optional(),
-  ADMIN_PASSWORD: Joi.string().optional(),
+  ADMIN_EMAIL: Joi.string().email().required().messages({
+    'string.empty': '"ADMIN_EMAIL" no puede estar vacío',
+    'string.email': '"ADMIN_EMAIL" debe ser un email válido',
+    'any.required': '"ADMIN_EMAIL" es obligatoria: es el login del usuario ADMIN',
+  }),
+
+  ADMIN_NOMBRE: Joi.string().min(2).max(80).required().messages({
+    'string.empty': '"ADMIN_NOMBRE" no puede estar vacío',
+    'any.required': '"ADMIN_NOMBRE" es obligatoria',
+  }),
+
+  ADMIN_PASSWORD: Joi.string().min(8).required().messages({
+    'string.empty': '"ADMIN_PASSWORD" no puede estar vacía',
+    'string.min': '"ADMIN_PASSWORD" debe tener al menos 8 caracteres',
+    'any.required': '"ADMIN_PASSWORD" es obligatoria: el seed no tiene valor por defecto',
+  }),
 });

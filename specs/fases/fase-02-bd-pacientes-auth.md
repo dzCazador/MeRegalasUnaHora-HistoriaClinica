@@ -2,14 +2,16 @@
 
 | | |
 |---|---|
-| **Estado** | `PENDIENTE` |
+| **Estado** | `COMPLETADA` |
 | **Depende de** | Fase 1 |
 | **Bloquea a** | Fases 3, 4, 5 |
 | **Estimación** | 5 – 7 días |
-| **Rama sugerida** | `feat/fase-2-bd-pacientes-auth` |
+| **Rama** | `main` (decisión de dirección: sin rama por fase) |
+| **Cerrada** | 2026-09-25 |
 | **Documentos fuente** | `../03-esquema-bd.md` §1–§3, §7, §8, §10, §14 · `../02-arquitectura-tech.md` §5, §7, §8, §9 · `../01-requerimientos-y-negocio.md` §3.1.2, §3.3, §3.4, §4 (RN-01, RN-04, RN-07), §6 |
 | **Requisitos cubiertos** | RF-03.1, RF-03.2, RF-03.6, RF-04.1, RF-04.2, RF-07.1 · RN-01, RN-04, RN-07 · CU-02, CU-06, CU-07 |
-| **Progreso** | **0 / 44 tareas · 0 / 30 verificaciones · 0 / 15 criterios de cierre** · 5 condiciones de entrada |
+| **Progreso** | **44 / 44 tareas · 30 / 30 verificaciones · 15 / 15 criterios de cierre** · 5 / 5 condiciones de entrada |
+| **Desviaciones** | 9 (DI-13 … DI-21) + 3 bugs corregidos — ver §10 |
 
 ---
 
@@ -21,18 +23,33 @@ de pacientes, con autenticación funcionando y el guard global protegiendo todos
 **Al terminar:** `POST /api/auth/login` emite un JWT y `GET /api/pacientes?q=jose` encuentra a
 `José` detrás del guard, con paginación y metadatos.
 
+### 1.1 Gate resuelto (2026-09-25)
+
+Las 5 condiciones de entrada de §2 quedan cubiertas así:
+
+| Condición | Estado |
+|---|---|
+| Fase 1 `COMPLETADA` y lint limpio | ✓ |
+| `migrate status` sin errores, base con `utf8mb4_0900_ai_ci` | ✓ (verificar en 5.1) |
+| **B-1** preguntas 1, 2 y 3 de `../01` §12 | ✓ `RESUELTA` por default documentado — ver `ESTADO.md` §3.1 |
+| **B-2 / DI-08** estrategia de pruebas | ✓ `RESUELTA`: sin archivos de prueba, verificación manual |
+| DI-02, DI-03 y DI-04 revisadas | ✓ DI-02 ya `RESUELTA` (B-4); DI-03 y DI-04 se aplican en §3.2 |
+
+> **B-1 es un default, no una respuesta de la organización.** Si más adelante se responde distinto,
+> se reabre y se escribe una migración nueva. Las preguntas 4 a 8 no bloquean esta fase.
+
 ---
 
 ## 2. Condiciones de entrada (gate)
 
-- [ ] Fase 1 `COMPLETADA` en `ESTADO.md` y `npm run lint` limpio en ambos proyectos.
-- [ ] `npx prisma migrate status` sin errores y base `meregalasunahora_dev` creada con el collation
+- [x] Fase 1 `COMPLETADA` en `ESTADO.md` y `npm run lint` limpio en ambos proyectos.
+- [x] `npx prisma migrate status` sin errores y base `meregalasunahora_dev` creada con el collation
       `utf8mb4_0900_ai_ci`.
-- [ ] **B-1** (preguntas abiertas 1, 2 y 3 de `../01` §12) resueltas: alcance del número de historia,
+- [x] **B-1** (preguntas abiertas 1, 2 y 3 de `../01` §12) resueltas: alcance del número de historia,
       tipos de documento aceptados y matriz de roles.
-- [ ] **B-2 / DI-08** (estrategia de pruebas) resuelta. Si sigue abierta: **no se generan archivos de
+- [x] **B-2 / DI-08** (estrategia de pruebas) resuelta. Si sigue abierta: **no se generan archivos de
       prueba** y toda la verificación de esta fase es manual con `curl` + `npx prisma studio`.
-- [ ] DI-02, DI-03 y DI-04 de `README.md` §5 revisadas y aceptadas por dirección técnica.
+- [x] DI-02, DI-03 y DI-04 de `README.md` §5 revisadas y aceptadas por dirección técnica.
 
 ---
 
@@ -87,155 +104,155 @@ Enums: `Sexo` (`F`, `M`, `X`, `SIN_DATOS`) · `Rol` (`MEDICO`, `COORDINADOR`, `A
 
 ### 4.1 Modelo de datos
 
-- [ ] **2.1.1** Escribir `schema.prisma` con `generator client`, `datasource db` (MySQL,
+- [x] **2.1.1** Escribir `schema.prisma` con `generator client`, `datasource db` (MySQL,
       `env("DATABASE_URL")`) y los 7 modelos + 3 enums de §3.1, con `@@map` a `snake_case` y
       `@map` en cada campo.
       *Archivo: `backend/prisma/schema.prisma`*
-- [ ] **2.1.2** Declarar en `Paciente`: `documento String? @unique @db.VarChar(20)`,
+- [x] **2.1.2** Declarar en `Paciente`: `documento String? @unique @db.VarChar(20)`,
       `edad Int @db.TinyInt`, `sexo Sexo @default(SIN_DATOS)`, `fechaNacimiento DateTime? @db.Date`,
       `sinDomicilioFijo Boolean @default(false)`, `observaciones String? @db.Text`,
       `activo Boolean @default(true)`, `createdAt`/`updatedAt` con `@db.DateTime(3)`,
       `createdBy BigInt?` con `onDelete: SetNull`.
       *Archivo: `backend/prisma/schema.prisma`*
-- [ ] **2.1.3** Declarar índices con `map:` explícito según `../03` §3.1–§3.4:
+- [x] **2.1.3** Declarar índices con `map:` explícito según `../03` §3.1–§3.4:
       `ix_pacientes_apellido_nombre` (compuesto, orden de la consulta), `ix_pacientes_activo`,
       `ix_pacientes_nacionalidad`, `ix_mv_apellido`, `ix_mv_activo`, `ix_representantes_nombre`,
       `ix_representantes_documento`, y los `UNIQUE` de catálogos.
       *Archivo: `backend/prisma/schema.prisma`*
-- [ ] **2.1.4** Declarar las relaciones con `onDelete` explícito: `Restrict` donde el dato es clínico
+- [x] **2.1.4** Declarar las relaciones con `onDelete` explícito: `Restrict` donde el dato es clínico
       o de autoría, `SetNull` donde la referencia es accesoria.
       *Archivo: `backend/prisma/schema.prisma`*
-- [ ] **2.1.5** Generar la migración inicial en modo edición manual:
+- [x] **2.1.5** Generar la migración inicial en modo edición manual:
       `npx prisma migrate dev --name init --create-only`.
       *Archivo: `backend/prisma/migrations/0*_init/migration.sql`*
-- [ ] **2.1.6** Editar `migration.sql` y **agregar los `CHECK`** que Prisma no declara:
+- [x] **2.1.6** Editar `migration.sql` y **agregar los `CHECK`** que Prisma no declara:
       `ck_pacientes_edad` (`edad BETWEEN 0 AND 120`). Verificar también que la tabla y las columnas
       quedan en `utf8mb4` con el collation de la base.
       *Archivo: `backend/prisma/migrations/0*_init/migration.sql`*
-- [ ] **2.1.7** Aplicar la migración: `npx prisma migrate dev` y `npx prisma generate`.
+- [x] **2.1.7** Aplicar la migración: `npx prisma migrate dev` y `npx prisma generate`.
       *Archivos: `backend/prisma/migrations/` · generado en `node_modules/.prisma`*
-- [ ] **2.1.8** Verificar el esquema en `npx prisma studio` y con `SHOW CREATE TABLE pacientes`.
+- [x] **2.1.8** Verificar el esquema en `npx prisma studio` y con `SHOW CREATE TABLE pacientes`.
       *Comando: `mysql -u root -p -e "SHOW CREATE TABLE meregalasunahora_dev.pacientes\G"`*
 
 ### 4.2 Seed
 
-- [ ] **2.2.1** Configurar el seed en `package.json` con `"prisma": { "seed": "…" }` y
+- [x] **2.2.1** Configurar el seed en `package.json` con `"prisma": { "seed": "…" }` y
       `tsx prisma/seed.ts` (o `node --loader ts-node/esm`, según lo instalado).
       *Archivo: `backend/package.json`*
-- [ ] **2.2.2** `seed.ts` con `estados_civiles`: Soltero/a, Casado/a, Unión libre, Separado/a,
+- [x] **2.2.2** `seed.ts` con `estados_civiles`: Soltero/a, Casado/a, Unión libre, Separado/a,
       Divorciado/a, Viudo/a, **Sin datos** (con su `orden`).
       *Archivo: `backend/prisma/seed.ts`*
-- [ ] **2.2.3** `seed.ts` con `nacionalidades`: lista de países con **`Argentina` primero**
+- [x] **2.2.3** `seed.ts` con `nacionalidades`: lista de países con **`Argentina` primero**
       y `codigoIso` ISO 3166-1 alfa-3.
       *Archivo: `backend/prisma/seed.ts`*
-- [ ] **2.2.4** `seed.ts` con `tipos_documento`: DNI, Cédula, Pasaporte, Documento de emergencia,
+- [x] **2.2.4** `seed.ts` con `tipos_documento`: DNI, Cédula, Pasaporte, Documento de emergencia,
       **Sin documento** (`requiereNumero: false`).
       *Archivo: `backend/prisma/seed.ts`*
-- [ ] **2.2.5** `seed.ts` con `operativos`: **vacío o con un único ítem genérico**. Los puestos
+- [x] **2.2.5** `seed.ts` con `operativos`: **vacío o con un único ítem genérico**. Los puestos
       reales los define la organización (B-7). Sin datos inventados.
       *Archivo: `backend/prisma/seed.ts`*
-- [ ] **2.2.6** `seed.ts` con el usuario `ADMIN`: email y nombre desde `ADMIN_EMAIL` /
+- [x] **2.2.6** `seed.ts` con el usuario `ADMIN`: email y nombre desde `ADMIN_EMAIL` /
       `ADMIN_NOMBRE`, **contraseña leída de `ADMIN_PASSWORD` y hasheada con bcrypt en tiempo de
       ejecución**. Prohibido cualquier valor por defecto hardcodeado.
       *Archivo: `backend/prisma/seed.ts`*
-- [ ] **2.2.7** Todo el seed con `upsert` (o `findUnique` + create) para que sea **idempotente**.
+- [x] **2.2.7** Todo el seed con `upsert` (o `findUnique` + create) para que sea **idempotente**.
       *Archivo: `backend/prisma/seed.ts`*
-- [ ] **2.2.8** Confirmar que el seed **no inserta pacientes, médicos ni historias ficticias**.
+- [x] **2.2.8** Confirmar que el seed **no inserta pacientes, médicos ni historias ficticias**.
       *Archivo: `backend/prisma/seed.ts`*
 
 ### 4.3 Capa común (`common/`)
 
-- [ ] **2.3.1** `dto/paginacion.dto.ts` con `page` (default 1, mín. 1) y `limit` (default 20,
+- [x] **2.3.1** `dto/paginacion.dto.ts` con `page` (default 1, mín. 1) y `limit` (default 20,
       máx. 100), con `@Type(() => Number)` y `@Transform` para coerción desde query string.
       *Archivo: `backend/src/common/dto/paginacion.dto.ts`*
-- [ ] **2.3.2** `filters/prisma-exception.filter.ts` que traduzca `P2002`, `P2003`, `P2014`, `P2025`
+- [x] **2.3.2** `filters/prisma-exception.filter.ts` que traduzca `P2002`, `P2003`, `P2014`, `P2025`
       a las excepciones de la tabla de §3.3, y un `filtro-excepcion.filter.ts` que.ensure la forma
       `{ success: false, error: { code, message, details?, path, timestamp } }` en **todos** los
       errores, incluidos los no controlados (sin filtrar stack al cliente).
       *Archivos: `backend/src/common/filters/`*
-- [ ] **2.3.3** `interceptors/bigint.interceptor.ts` (DI-03): registra globalmente y convierte
+- [x] **2.3.3** `interceptors/bigint.interceptor.ts` (DI-03): registra globalmente y convierte
       `BigInt` a `Number` en la respuesta.
       *Archivo: `backend/src/common/interceptors/bigint.interceptor.ts` · `backend/src/main.ts`*
-- [ ] **2.3.4** `interceptors/respuesta.interceptor.ts` o helper único que envuelva la respuesta en
+- [x] **2.3.4** `interceptors/respuesta.interceptor.ts` o helper único que envuelva la respuesta en
       `{ success: true, data, meta? }`.
       *Archivo: `backend/src/common/interceptors/`*
-- [ ] **2.3.5** `decorators/public.decorator.ts` (`@Public()`) y `decorators/current-user.decorator.ts`
+- [x] **2.3.5** `decorators/public.decorator.ts` (`@Public()`) y `decorators/current-user.decorator.ts`
       (`@CurrentUser()`).
       *Archivos: `backend/src/common/decorators/`*
-- [ ] **2.3.6** `utils/texto.ts` con `normalizarDocumento()` (`''` → `null`, solo dígitos) y
+- [x] **2.3.6** `utils/texto.ts` con `normalizarDocumento()` (`''` → `null`, solo dígitos) y
       `esDocumentoDuplicado()`.
       *Archivo: `backend/src/common/utils/texto.ts`*
 
 ### 4.4 Autenticación
 
-- [ ] **2.4.1** `nest g resource auth --no-spec` y borrar el código muerto generado.
+- [x] **2.4.1** `nest g resource auth --no-spec` y borrar el código muerto generado.
       *Archivos: `backend/src/auth/`*
-- [ ] **2.4.2** `dto/login.dto.ts`: `email` (`@IsEmail()`) y `password` (`@IsString()`,
+- [x] **2.4.2** `dto/login.dto.ts`: `email` (`@IsEmail()`) y `password` (`@IsString()`,
       `@MinLength(8)`), con trim.
       *Archivo: `backend/src/auth/dto/login.dto.ts`*
-- [ ] **2.4.3** `AuthService.login()`: busca por `email`, compara con `bcrypt.compare`, y si falla
+- [x] **2.4.3** `AuthService.login()`: busca por `email`, compara con `bcrypt.compare`, y si falla
       devuelve un **mensaje genérico** (nunca revela si el email existe).
       *Archivo: `backend/src/auth/auth.service.ts`*
-- [ ] **2.4.4** Emitir el JWT con los claims `sub`, `usuario`, `nombre`, `rol`, `iss`, `aud`, `iat`, `exp`,
+- [x] **2.4.4** Emitir el JWT con los claims `sub`, `usuario`, `nombre`, `rol`, `iss`, `aud`, `iat`, `exp`,
       usando `JWT_SECRET` y `JWT_EXPIRES_IN`. Actualizar `ultimoAcceso` del médico.
       *Archivo: `backend/src/auth/auth.service.ts`*
-- [ ] **2.4.5** `JwtAuthGuard` registrado **globalmente** con `APP_GUARD`, respetando `@Public()`.
+- [x] **2.4.5** `JwtAuthGuard` registrado **globalmente** con `APP_GUARD`, respetando `@Public()`.
       *Archivos: `backend/src/auth/jwt-auth.guard.ts`, `backend/src/app.module.ts`*
-- [ ] **2.4.6** `RolesGuard` global con `@Roles()` para los endpoints de gestión.
+- [x] **2.4.6** `RolesGuard` global con `@Roles()` para los endpoints de gestión.
       *Archivos: `backend/src/auth/roles.guard.ts`, `backend/src/common/decorators/roles.decorator.ts`*
-- [ ] **2.4.7** `GET /api/auth/me` (protegido): devuelve el usuario del token.
+- [x] **2.4.7** `GET /api/auth/me` (protegido): devuelve el usuario del token.
       *Archivo: `backend/src/auth/auth.controller.ts`*
-- [ ] **2.4.8** Marcar `POST /api/auth/login` con `@Public()` y documentar ambos endpoints en Swagger.
+- [x] **2.4.8** Marcar `POST /api/auth/login` con `@Public()` y documentar ambos endpoints en Swagger.
       *Archivo: `backend/src/auth/auth.controller.ts`*
 
 ### 4.5 Módulo de pacientes
 
-- [ ] **2.5.1** `nest g resource pacientes --no-spec` y limpiar los archivos generados.
+- [x] **2.5.1** `nest g resource pacientes --no-spec` y limpiar los archivos generados.
       *Archivos: `backend/src/pacientes/`*
-- [ ] **2.5.2** `CreatePacienteDto` con los campos del **Bloque B** y las validaciones de `../01` §6:
+- [x] **2.5.2** `CreatePacienteDto` con los campos del **Bloque B** y las validaciones de `../01` §6:
       `apellido` y `nombre` (2–80, obligatorios), `documento` (opcional, 3–20, solo dígitos),
       `edad` (`@IsInt()`, `@Min(0)`, `@Max(120)`), `sexo` (`@IsEnum(Sexo)`),
       `estadoCivilId` y `nacionalidadId` (obligatorios, `number`),
       `tipoDocumentoId` (opcional), `fechaNacimiento` (`@IsDateString()`, opcional),
       `domicilio` (≤200, opcional), `telefono` (3–30, opcional), `sinDomicilioFijo`, `observaciones`.
       *Archivo: `backend/src/pacientes/dto/create-paciente.dto.ts`*
-- [ ] **2.5.3** `UpdatePacienteDto` con `PartialType(CreatePacienteDto)`, sin campos de auditoría ni
+- [x] **2.5.3** `UpdatePacienteDto` con `PartialType(CreatePacienteDto)`, sin campos de auditoría ni
       de estado.
       *Archivo: `backend/src/pacientes/dto/update-paciente.dto.ts`*
-- [ ] **2.5.4** `QueryPacienteDto` extends `PaginacionDto`: `q`, `sexo`, `nacionalidadId`,
+- [x] **2.5.4** `QueryPacienteDto` extends `PaginacionDto`: `q`, `sexo`, `nacionalidadId`,
       `estadoCivilId`, `activo`, `desde`, `hasta`, `ordenarPor`, `orden`.
       *Archivo: `backend/src/pacientes/dto/query-paciente.dto.ts`*
-- [ ] **2.5.5** `PacienteResponseDto` con la forma de salida documentada en Swagger (incluye
+- [x] **2.5.5** `PacienteResponseDto` con la forma de salida documentada en Swagger (incluye
       `numeroHistoria` como `number`).
       *Archivo: `backend/src/pacientes/dto/paciente-response.dto.ts`*
-- [ ] **2.5.6** `GET /api/pacientes`: listado paginado con `q` buscando en `apellido`, `nombre`,
+- [x] **2.5.6** `GET /api/pacientes`: listado paginado con `q` buscando en `apellido`, `nombre`,
       `documento` y `numeroHistoria`, **`orderBy` estable** (`apellido`, luego `id`), filtro por
       `activo` por defecto y `meta` con `total`, `page`, `limit`, `totalPages`.
       *Archivo: `backend/src/pacientes/pacientes.service.ts`*
-- [ ] **2.5.7** `GET /api/pacientes/:id`: detalle con `Prisma.ParseIntPipe`-equivalente para `BigInt`
+- [x] **2.5.7** `GET /api/pacientes/:id`: detalle con `Prisma.ParseIntPipe`-equivalente para `BigInt`
       (`@Param('id', ParseBigIntPipe)`) y `404` con `P2025` si no existe.
       *Archivo: `backend/src/pacientes/pacientes.controller.ts`*
-- [ ] **2.5.8** `POST /api/pacientes` — **en esta fase solo el paciente**, en `$transaction`:
+- [x] **2.5.8** `POST /api/pacientes` — **en esta fase solo el paciente**, en `$transaction`:
       crear el paciente y completar `numeroHistoria` con su `id` (DI-02). Resolver
       `createdBy` desde `@CurrentUser()`, **nunca** desde el body.
       *Archivo: `backend/src/pacientes/pacientes.service.ts`*
-- [ ] **2.5.9** Normalizar `documento = ''` → `null` **antes** de insertar (RN-01) y dejar que el
+- [x] **2.5.9** Normalizar `documento = ''` → `null` **antes** de insertar (RN-01) y dejar que el
       `UNIQUE` devuelva `409` en duplicados.
       *Archivo: `backend/src/pacientes/pacientes.service.ts` · `backend/src/common/utils/texto.ts`*
-- [ ] **2.5.10** `PATCH /api/pacientes/:id`: solo datos de identificación. Sin `DELETE`.
+- [x] **2.5.10** `PATCH /api/pacientes/:id`: solo datos de identificación. Sin `DELETE`.
       *Archivo: `backend/src/pacientes/pacientes.controller.ts`*
-- [ ] **2.5.11** Swagger completo en los 4 endpoints (`@ApiTags`, `@ApiOperation`, `@ApiResponse`,
+- [x] **2.5.11** Swagger completo en los 4 endpoints (`@ApiTags`, `@ApiOperation`, `@ApiResponse`,
       `@ApiBearerAuth`, `@ApiQuery`, `@ApiParam`).
       *Archivo: `backend/src/pacientes/pacientes.controller.ts`*
 
 ### 4.6 Catálogos
 
-- [ ] **2.6.1** `nest g resource catalogos --no-spec`.
+- [x] **2.6.1** `nest g resource catalogos --no-spec`.
       *Archivos: `backend/src/catalogos/`*
-- [ ] **2.6.2** `GET /api/catalogos/estados-civiles`, `GET /api/catalogos/nacionalidades` y
+- [x] **2.6.2** `GET /api/catalogos/estados-civiles`, `GET /api/catalogos/nacionalidades` y
       `GET /api/catalogos/tipos-documento`: solo ítems `activo`, ordenados por `orden`.
       *Archivo: `backend/src/catalogos/catalogos.controller.ts`*
-- [ ] **2.6.3** Registrar `CatalogosModule` y `AuthModule` en `app.module.ts`.
+- [x] **2.6.3** Registrar `CatalogosModule` y `AuthModule` en `app.module.ts`.
       *Archivo: `backend/src/app.module.ts`*
 
 ---
@@ -244,78 +261,78 @@ Enums: `Sexo` (`F`, `M`, `X`, `SIN_DATOS`) · `Rol` (`MEDICO`, `COORDINADOR`, `A
 
 ### 5.1 Base de datos
 
-- [ ] `npx prisma migrate status` → la base está al día, sin migraciones pendientes.
-- [ ] `DROP DATABASE meregalasunahora_dev;` + recrear + `npx prisma migrate deploy` → **migración
+- [x] `npx prisma migrate status` → la base está al día, sin migraciones pendientes.
+- [x] `DROP DATABASE meregalasunahora_dev;` + recrear + `npx prisma migrate deploy` → **migración
       limpia desde cero**, sin warnings.
-- [ ] `npx prisma db seed` seguido de `npx prisma db seed` → la segunda corrida no duplica filas
+- [x] `npx prisma db seed` seguido de `npx prisma db seed` → la segunda corrida no duplica filas
       (contar con `SELECT COUNT(*)` en cada catálogo).
-- [ ] `SHOW CREATE TABLE pacientes` → confirma `UNIQUE(documento)`, `UNIQUE(numero_historia)`,
+- [x] `SHOW CREATE TABLE pacientes` → confirma `UNIQUE(documento)`, `UNIQUE(numero_historia)`,
       los índices compuestos, `DATETIME(3)` en auditoría y el `CHECK` de edad.
-- [ ] `npx prisma studio` → los catálogos aparecen con `Argentina` primero y *"Sin documento"*
+- [x] `npx prisma studio` → los catálogos aparecen con `Argentina` primero y *"Sin documento"*
       en `tipos_documento`.
-- [ ] `SELECT * FROM medicos_voluntarios` → existe **1** admin y su `password_hash` es un hash bcrypt
+- [x] `SELECT * FROM medicos_voluntarios` → existe **1** admin y su `password_hash` es un hash bcrypt
       de 60 caracteres, no texto plano.
 
 ### 5.2 Autenticación
 
-- [ ] `curl -s http://localhost:4000/api/pacientes` **sin** cabecera `Authorization` → `401` con
+- [x] `curl -s http://localhost:4000/api/pacientes` **sin** cabecera `Authorization` → `401` con
       `{ "success": false, "error": { ... } }`.
-- [ ] `curl -s -X POST .../api/auth/login` con contraseña incorrecta → `401` con mensaje genérico
+- [x] `curl -s -X POST .../api/auth/login` con contraseña incorrecta → `401` con mensaje genérico
       que **no** revela si el email existe.
-- [ ] `curl -s -X POST .../api/auth/login` con credenciales de `ADMIN_EMAIL`/`ADMIN_PASSWORD` → `200`
+- [x] `curl -s -X POST .../api/auth/login` con credenciales de `ADMIN_EMAIL`/`ADMIN_PASSWORD` → `200`
       con `accessToken` y los claims `sub`, `usuario`, `nombre`, `rol`, `iss`, `aud`, `exp`.
-- [ ] `curl -s -H "Authorization: Bearer <token>" .../api/auth/me` → devuelve el usuario del token.
-- [ ] `curl -s -H "Authorization: Bearer token.invalido" .../api/pacientes` → `401`.
-- [ ] Recorrer Swagger: **solo** `POST /api/auth/login` y `GET /api/health` están sin candado.
+- [x] `curl -s -H "Authorization: Bearer <token>" .../api/auth/me` → devuelve el usuario del token.
+- [x] `curl -s -H "Authorization: Bearer token.invalido" .../api/pacientes` → `401`.
+- [x] Recorrer Swagger: **solo** `POST /api/auth/login` y `GET /api/health` están sin candado.
 
 ### 5.3 Pacientes
 
-- [ ] `POST /api/pacientes` con los 10 campos del Bloque B → `201` con `numeroHistoria` asignado.
-- [ ] `GET /api/pacientes?q=jose` → encuentra al paciente `José`.
-- [ ] `GET /api/pacientes?q=JOSE` → **mismo resultado** que el anterior (collation).
-- [ ] `GET /api/pacientes?q=0998` (documento `998`) → encuentra al paciente.
-- [ ] `GET /api/pacientes` → la respuesta incluye `meta: { total, page, limit, totalPages }`.
-- [ ] `GET /api/pacientes?page=999` → `meta.totalPages` correcto y `data: []` sin error.
-- [ ] `POST /api/pacientes` **dos veces** con `documento: ""` → **no** hay conflicto de duplicado
+- [x] `POST /api/pacientes` con los 10 campos del Bloque B → `201` con `numeroHistoria` asignado.
+- [x] `GET /api/pacientes?q=jose` → encuentra al paciente `José`.
+- [x] `GET /api/pacientes?q=JOSE` → **mismo resultado** que el anterior (collation).
+- [x] `GET /api/pacientes?q=0998` (documento `998`) → encuentra al paciente.
+- [x] `GET /api/pacientes` → la respuesta incluye `meta: { total, page, limit, totalPages }`.
+- [x] `GET /api/pacientes?page=999` → `meta.totalPages` correcto y `data: []` sin error.
+- [x] `POST /api/pacientes` **dos veces** con `documento: ""` → **no** hay conflicto de duplicado
       (RN-01: `''` se normalizó a `NULL`).
-- [ ] `POST /api/pacientes` con un `documento` ya existente → `409` con mensaje claro.
-- [ ] `PATCH /api/pacientes/:id` con `edad: 200` → `400` (validación del DTO).
-- [ ] `POST /api/pacientes` con `edad: 130` esperando el `400` del DTO y, si pasa, `500` por el
+- [x] `POST /api/pacientes` con un `documento` ya existente → `409` con mensaje claro.
+- [x] `PATCH /api/pacientes/:id` con `edad: 200` → `400` (validación del DTO).
+- [x] `POST /api/pacientes` con `edad: 130` esperando el `400` del DTO y, si pasa, `500` por el
       `CHECK` de MySQL → en cualquier caso **no** se inserta el registro.
-- [ ] `POST /api/pacientes` enviando `createdBy: 999` en el body → `400` (campo no declarado en el
+- [x] `POST /api/pacientes` enviando `createdBy: 999` en el body → `400` (campo no declarado en el
       DTO) y el registro creado tiene el `created_by` **del token**.
-- [ ] `GET /api/pacientes` con 30 pacientes de prueba → el orden es estable entre páginas
+- [x] `GET /api/pacientes` con 30 pacientes de prueba → el orden es estable entre páginas
       (mismo `id` desempate, sin repetidos ni saltados al paginar).
-- [ ] Un `GET` con `page` negativo o `limit: 1000` → `400`.
+- [x] Un `GET` con `page` negativo o `limit: 1000` → `400`.
 
 ### 5.4 Calidad
 
-- [ ] `npm run lint` (backend) → 0 errores, 0 warnings.
-- [ ] `npm run build` (backend) → `dist/main.js` generado.
-- [ ] `node dist/main.js` → responde en `/api/health` (confirma que no es `dist/src/main.js`).
-- [ ] Revisar la salida del server en consola: **ningún dato de paciente** (nombre, documento,
+- [x] `npm run lint` (backend) → 0 errores, 0 warnings.
+- [x] `npm run build` (backend) → `dist/main.js` generado.
+- [x] `node dist/main.js` → responde en `/api/health` (confirma que no es `dist/src/main.js`).
+- [x] Revisar la salida del server en consola: **ningún dato de paciente** (nombre, documento,
       domicilio) aparece en los logs.
-- [ ] `git status` → ningún `.env` ni credencial en el índice.
+- [x] `git status` → ningún `.env` ni credencial en el índice.
 
 ---
 
 ## 6. Criterios de cierre
 
-- [ ] `npx prisma migrate status` indica la base al día.
-- [ ] `npx prisma migrate dev` genera una migración limpia desde cero.
-- [ ] El seed es idempotente: ejecutarlo dos veces no duplica registros.
-- [ ] Sin endpoints de datos accesibles sin token (verificado con `curl` sin `Authorization` → `401`).
-- [ ] `POST /api/auth/login` con credenciales incorrectas devuelve `401` con mensaje genérico.
-- [ ] `GET /api/pacientes?q=jose` encuentra a un paciente `José`.
-- [ ] `GET /api/pacientes?q=JOSE` devuelve el mismo resultado.
-- [ ] `POST /api/pacientes` con `documento` vacío **no** genera conflicto de duplicado.
-- [ ] `POST /api/pacientes` con `documento` repetido devuelve `409`.
-- [ ] `PATCH /api/pacientes/:id` con `edad = 200` devuelve `400`.
-- [ ] La respuesta de los listados incluye `meta: { total, page, limit, totalPages }`.
-- [ ] `createdBy` y la autoría provienen del token, no del cuerpo de la petición.
-- [ ] Los ids se serializan como `number` (sin `TypeError: Do not know how to serialize a BigInt`).
-- [ ] `npm run lint` limpio y `dist/main.js` compila.
-- [ ] Ningún dato sensible en los logs del servidor.
+- [x] `npx prisma migrate status` indica la base al día.
+- [x] `npx prisma migrate dev` genera una migración limpia desde cero.
+- [x] El seed es idempotente: ejecutarlo dos veces no duplica registros.
+- [x] Sin endpoints de datos accesibles sin token (verificado con `curl` sin `Authorization` → `401`).
+- [x] `POST /api/auth/login` con credenciales incorrectas devuelve `401` con mensaje genérico.
+- [x] `GET /api/pacientes?q=jose` encuentra a un paciente `José`.
+- [x] `GET /api/pacientes?q=JOSE` devuelve el mismo resultado.
+- [x] `POST /api/pacientes` con `documento` vacío **no** genera conflicto de duplicado.
+- [x] `POST /api/pacientes` con `documento` repetido devuelve `409`.
+- [x] `PATCH /api/pacientes/:id` con `edad = 200` devuelve `400`.
+- [x] La respuesta de los listados incluye `meta: { total, page, limit, totalPages }`.
+- [x] `createdBy` y la autoría provienen del token, no del cuerpo de la petición.
+- [x] Los ids se serializan como `number` (sin `TypeError: Do not know how to serialize a BigInt`).
+- [x] `npm run lint` limpio y `dist/main.js` compila.
+- [x] Ningún dato sensible en los logs del servidor.
 
 ---
 
@@ -351,8 +368,39 @@ Enums: `Sexo` (`F`, `M`, `X`, `SIN_DATOS`) · `Rol` (`MEDICO`, `COORDINADOR`, `A
 
 ## 9. Cierre
 
-- [ ] Actualizar `../03-esquema-bd.md` con la resolución de DI-02, DI-03, DI-04 y DI-06.
-- [ ] Commit: `feat: modelo de datos, seed, autenticacion JWT y API de pacientes`
-- [ ] PR contra `develop` con *qué* cambia, *por qué* y requisitos cubiertos (RF-03, RF-04, RN-01).
-- [ ] `ESTADO.md` §1: Fase 2 `COMPLETADA`, fase actual = Fase 3 (o Fase 4, que puede solaparse).
-- [ ] `ESTADO.md` §3: cerrar B-1, B-2, B-4 y §4 con una fila de registro.
+- [x] Actualizar `../03-esquema-bd.md` con la resolución de DI-02, DI-03, DI-04 y DI-06. → §15
+- [x] Commit: `feat: modelo de datos, seed, autenticacion JWT y API de pacientes`
+- [x] ~~PR contra `develop`~~ → **desviación**: por decisión de dirección (2026-09-25) el trabajo se
+      hace directo sobre `main`, sin rama por fase ni PR. `develop` se sincroniza al cerrar.
+- [x] `ESTADO.md` §1: Fase 2 `COMPLETADA`, fase actual = Fase 3 (o Fase 4, que puede solaparse).
+- [x] `ESTADO.md` §3: cerrar B-1, B-2, B-4 y §4 con una fila de registro.
+
+---
+
+## 10. Desviaciones del playbook
+
+Todo lo que se hizo distinto de lo que dice este documento, y por qué. Regla de precedencia: cuando
+el playbook contradice a un documento fuente, **manda el documento fuente** (`../01`, `../02`,
+`../03`).
+
+| # | Qué se hizo distinto | Por qué |
+|---|---|---|
+| **DI-13** | `ck_hc_fecha_no_futura` y `ck_ev_fecha_no_futura` **no** seorlaron. | MySQL 8 rechaza funciones no deterministas dentro de un `CHECK`: `An expression of a check constraint contains disallowed function: now` (error 3814). `../03` §3.2 y §3.3 los proponen. La fecha no futura se valida en el DTO, en la capa de aplicación |
+| **DI-14** | El `COLLATE` de las 9 tablas se fijó a mano en `utf8mb4_0900_ai_ci`. | Prisma emite `utf8mb4_unicode_ci`, que no es equivalente. Sin este cambio, la búsqueda `q=jose` **no** encuentra `José` (RF-03.2). `../03` §7.2 pide `0900_ai_ci` |
+| **DI-15** | Se añadió `shadowDatabaseUrl` al `datasource` y la variable `SHADOW_DATABASE_URL`. | `prisma migrate dev` necesita crear una base sombra. El usuario `app` está acotado a su esquema (RNF-09) y no puede. Se le dio un esquema propio, `meregalasunahora_shadow`, en vez de abrirle `CREATE`/`DROP` globales |
+| **DI-16** | Nombres de `UNIQUE` y de FK los genera Prisma (`pacientes_documento_key`), no los de `../03` §3.1 (`uq_pacientes_documento`). | Prisma no permite renombrar una FK desde el esquema, y un nombre distinto en la migración que en el esquema produce *drift* en el próximo `migrate dev`. Se prefirió un esquema sin drift |
+| **DI-17** | `id` es `BIGINT` con signo, no `BIGINT UNSIGNED`. | Prisma no emite tipos `UNSIGNED` en MySQL. El rango practical es el mismo (hasta 2^63-1). `edad` y `orden` son `TINYINT` con signo: el rango 0–120 lo impone `ck_pacientes_edad` |
+| **DI-18** | `numero_historia` queda **nullable** en el esquema. | Es lo que ya pedía la tarea 2.1.2 / DI-02. MySQL no permite escribir el `id` en la misma columna `AUTO_INCREMENT` dentro del `INSERT`, así que se completa en un segundo paso de la misma transacción |
+| **DI-19** | La búsqueda `q` tolera ceros a la izquierda en el documento. | La verificación §5.3 pide que `q=0998` encuentre el documento `998`. Un DNI se recuerda con o sin ceros. Sólo aplica a consultas numéricas puras |
+| **DI-20** | `JwtAuthGuard` valida con `JwtService` en vez de Passport. | `../02` §41 sólo declara `@nestjs/jwt`; no está Passport en el stack. Un token ya firmado no necesita el middleware de sesión que aporta Passport |
+| **DI-21** | `GET /api/health` se marca con un decorador `@Crudo()` nuevo. | El interceptor de `{ success, data }` lo envolvía y rompía el contrato plano de DI-11. No había decorador para la excepción |
+
+### 10.1 Bugs encontrados y corregidos durante la verificación
+
+Ninguno estaba en el playbook; los tres habrían pasado inadvertidos sin probar de verdad.
+
+| Bug | Síntoma | Causa | Corrección |
+|---|---|---|---|
+| Doble envoltorio | `GET /api/pacientes` devolvía `data.data` y `meta` enterrado | El service devuelve `{ data, meta }` y el interceptor lo envolvía otra vez | `respuesta.interceptor.ts` detecta el par `{ data, meta }` y lo promueve |
+| `409`/`404` salían `500` | Documento repetido y paciente inexistente respondían error interno | Nest evalúa los filters globales en **orden inverso** al de registro: el catch-all se quedaba con todos los `P2002`/`P2025` | Se invirtió el orden en `main.ts`, con el motivo anotado |
+| `POST` con documento de 2 dígitos devolvía `400` | — | **No era un bug**: el DTO exige 3 caracteres mínimo (`../01` §6). El script de verificación usaba datos de prueba inválidos | Se corrigieron los datos de prueba, no la aplicación |

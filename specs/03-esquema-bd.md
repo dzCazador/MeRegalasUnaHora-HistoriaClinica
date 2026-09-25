@@ -766,3 +766,41 @@ Se utiliza el nivel por defecto de MySQL (`REPEATABLE READ`) con InnoDB. Para op
 4. Toda columna eliminada se marca como obsoleta en una primera migración y se elimina en una segunda, posterior a la verificación del despliegue.
 5. Los cambios destructivos (borrado masivo, alteración de tipo incompatible) requieren migración manual revisada por dos personas y copia de seguridad verificada previa.
 6. El esquema en `schema.prisma` es la **fuente de verdad**: si hay discrepancia entre el código y el esquema, el esquema manda.
+
+---
+
+## 15. Resoluciones de la Fase 2 (aplicado)
+
+> Esta sección registra cómo quedó **realmente** el esquema tras aplicar la migración inicial
+> `20260925184859_init`. Cuando una regla de este documento no se pudo cumplir, queda anotada acá con
+> el motivo. El detalle completo está en [`fases/fase-02-bd-pacientes-auth.md`](./fases/fase-02-bd-pacientes-auth.md) §10.
+
+| Decisión | Cómo quedó | Por qué |
+|---|---|---|
+| **DI-02** `numero_historia` derivado de `id` | `numero_historia` **nullable** (`INT UNSIGNED DEFAULT NULL`). Se completa con `UPDATE ... SET numero_historia = id` en un segundo paso de la misma transacción | MySQL no permite escribir el `id` en la misma columna `AUTO_INCREMENT` dentro del `INSERT`. Verificado: `numero_historia == id` en el alta |
+| **DI-03** `BigInt` → `Number` | `BigintInterceptor` global, recorrido en profundidad (los ids aparecen anidados en `include`) | Sin él, la primera respuesta con ids lanzaba `TypeError: Do not know how to serialize a BigInt`. Límite: `2^53 - 1` |
+| **DI-04** `operativos` en el esquema | Tabla creada, **seed vacío** a propósito | Los puestos de atención los define la organización (bloqueo **B-7**). No se inventan datos |
+| **DI-06** `CHECK` a mano | 5 `CHECK` escritos a mano en `migration.sql`: `ck_pacientes_edad`, `ck_hc_edad`, `ck_hc_cierre`, `ck_ev_detalle`, más los de rango | Prisma no declara `CHECK`. Se generaron con `--create-only` y se editó el SQL |
+| **Collation real** | Las 9 tablas quedaron en `utf8mb4_0900_ai_ci` | Prisma emite `utf8mb4_unicode_ci`, que **no** es equivalente. Sin el cambio, `q=jose` no encuentra `José` (RF-03.2). Verificado |
+| **`CHECK` de fecha no futura** | **No se aplicaron** | MySQL 8 las rechaza: `An expression of a check constraint contains disallowed function: now` (error 3814). Se validan en el DTO |
+| **`UNSIGNED`** | `id` es `BIGINT` con signo; `edad` y `orden` son `TINYINT` con signo | Prisma no emite `UNSIGNED` en MySQL. El rango 0–120 de la edad lo impone `ck_pacientes_edad` |
+| **Nombres de `UNIQUE` y FK** | Los de Prisma (`pacientes_documento_key`, `pacientes_estado_civil_id_fkey`) | Prisma no permite renombrar una FK desde el esquema, y un nombre distinto en la migración que en el esquema produce *drift* en el próximo `migrate dev` |
+| **Base sombra** | `shadowDatabaseUrl` → esquema `meregalasunahora_shadow` | `prisma migrate dev` necesita una base sombra. Se le dio un esquema propio al usuario `app` en vez de abrirle `CREATE`/`DROP` globales |
+| **`auditoria`** | **No creada** | §4.6 dice Fase 5; el MVP la implementa en la Fase 7. Las 9 tablas reales son 3 núcleo + 6 soporte |
+
+### 15.1 Seed aplicado
+
+`npx prisma db seed` dos veces seguidas, sin duplicar: **7** estados civiles, **42** nacionalidades
+(Argentina primero), **5** tipos de documento (incluido "Sin documento"), **0** operativos,
+**1** usuario `ADMIN` con `password_hash` bcrypt de 60 caracteres. **0** pacientes: el seed no inserta
+datos de pacientes (prohibición 1 de `../AGENTS.md`).
+
+### 15.2 Privilegios del usuario de aplicación
+
+`DATABASE_URL` conecta con el usuario `app`, acotado a su esquema, **no** con `root` (RNF-09).
+Permisos: `SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES`.
+
+> **Consecuencia operativa:** `DROP DATABASE` **no** está permitido para `app`. Recrear la base desde
+> cero es una tarea de administración y hay que hacerla con un usuario privilegiado; después,
+> `prisma migrate deploy` corre con `app` sin problema. `migrate dev` y `migrate deploy` en un entorno
+> normal funcionan con los permisos acotados gracias al esquema sombra propio.

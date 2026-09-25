@@ -14,8 +14,8 @@ atiende población en situación de calle. Implementa el formulario de admisión
 
 | | |
 |---|---|
-| **Fase actual** | 1 — Setup inicial *(specs pendientes de aprobación)* |
-| **Progreso MVP** | 0 / 7 fases |
+| **Fase actual** | 2 — Modelo de BD, pacientes y autenticación ✅ |
+| **Progreso MVP** | 2 / 7 fases |
 | **Stack congelado** | Sí (`specs/02-arquitectura-tech.md`) |
 | **Base de datos** | MySQL 8 · `utf8mb4` · `utf8mb4_0900_ai_ci` |
 
@@ -76,7 +76,7 @@ contrato REST documentado en Swagger es la frontera entre ambos.
 
 ```text
 .
-├── backend/            API REST NestJS (puerto 4000)
+├── backend/            API REST NestJS (puerto 4001)
 │   ├── prisma/         schema.prisma · migrations/ · seed.ts
 │   ├── src/
 │   │   ├── main.ts     CORS · ValidationPipe · Swagger en /api
@@ -84,7 +84,7 @@ contrato REST documentado en Swagger es la frontera entre ambos.
 │   │   ├── common/     decorators · filters · interceptors · guards
 │   │   └── pacientes/ · historias-clinicas/ · medicos-voluntarios/ · catalogos/ · dashboard/
 │   └── .env.example
-├── frontend/           Next.js App Router (puerto 3000)
+├── frontend/           Next.js App Router (puerto 3001)
 │   ├── app/
 │   │   ├── (auth)/login/   única página pública
 │   │   ├── (app)/          rutas protegidas
@@ -129,14 +129,27 @@ CREATE DATABASE meregalasunahora_dev
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_0900_ai_ci;
 
+-- Base sombra: la usa `prisma migrate dev` para detectar drift. No contiene datos.
+CREATE DATABASE meregalasunahora_shadow
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_0900_ai_ci;
+
 CREATE USER 'app'@'localhost' IDENTIFIED BY '<clave-fuerte>';
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES
   ON meregalasunahora_dev.* TO 'app'@'localhost';
+GRANT ALL PRIVILEGES ON meregalasunahora_shadow.* TO 'app'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-> El usuario de aplicación debe tener permisos **solo** sobre su propio esquema. MySQL no se expone
+> El usuario de aplicación debe tener permisos **solo** sobre sus propios esquemas. MySQL no se expone
 > a Internet: solo es accesible desde el backend.
+>
+> `meregalasunahora_shadow` es un esquema aparte justamente para no darle a `app` permiso de crear
+> bases. Sin él, `prisma migrate dev` no puede trabajar (ver DI-15).
+>
+> **El usuario `app` no puede hacer `DROP DATABASE`.** Recrear la base desde cero es una tarea de
+> administración: hay que hacerla con un usuario privilegiado y después correr `prisma migrate deploy`,
+> que sí funciona con los permisos acotados.
 
 ### 3. Variables de entorno
 
@@ -144,19 +157,21 @@ FLUSH PRIVILEGES;
 
 ```dotenv
 NODE_ENV=development
-PORT=4000
+PORT=4001
 DATABASE_URL="mysql://app:<clave>@localhost:3306/meregalasunahora_dev"
+SHADOW_DATABASE_URL="mysql://app:<clave>@localhost:3306/meregalasunahora_shadow"
 JWT_SECRET="<cadena-aleatoria-de-mínimo-32-caracteres>"
 JWT_EXPIRES_IN=8h
-CORS_ORIGINS=http://localhost:3000
+CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 ADMIN_EMAIL="admin@organizacion.org"
+ADMIN_NOMBRE="Administrador"
 ADMIN_PASSWORD="<clave-del-admin-inicial>"
 ```
 
 **`frontend/.env.local`**
 
 ```dotenv
-NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_API_URL=http://localhost:4001
 ```
 
 Generar un secreto adequado:
@@ -166,7 +181,11 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
 > `.env` y `.env.local` **nunca** se versionan. Solo los `.example`, que están en `.gitignore`
-> con excepción explícita. La aplicación **falla al arrancar** si falta una variable obligatoria.
+> con excepción explícita. La aplicación **falla al arrancar** si falta una variable obligatoria,
+> y las tres `ADMIN_*` también son obligatorias: el seed no puede tener una clave por defecto.
+
+> **Puertos 4001 / 3001.** El proyecto hermano `RHPro-NextGeneration` ocupa el 4000 y el 3000, así que
+> este proyecto se movió al 4001 (backend) y 3001 (frontend) para no pelearlos (bloqueo B-9).
 
 ### 4. Migraciones y datos iniciales
 
@@ -184,25 +203,25 @@ de documento) y un único usuario `ADMIN` con la contraseña leída de `ADMIN_PA
 
 ```bash
 # Dos terminales
-cd backend  && npm run start:dev    # http://localhost:4000
-cd frontend && npm run dev          # http://localhost:3000
+cd backend  && npm run start:dev    # http://localhost:4001
+cd frontend && npm run dev          # http://localhost:3001
 ```
 
 ### 6. Verificar
 
 | Qué | Cómo | Resultado esperado |
 |---|---|---|
-| Backend vivo | `curl -s http://localhost:4000/api/health` | `{"status":"ok","database":"up"}` |
-| Documentación | abrir `http://localhost:4000/api` | Swagger UI |
-| Frontend vivo | abrir `http://localhost:3000` | redirige a `/login` |
+| Backend vivo | `curl -s http://localhost:4001/api/health` | `{"status":"ok","database":"up"}` |
+| Documentación | abrir `http://localhost:4001/api` | Swagger UI |
+| Frontend vivo | abrir `http://localhost:3001` | redirige a `/login` |
 | Autenticación | ver abajo | token JWT |
 
 ```bash
-curl -s -X POST http://localhost:4000/api/auth/login \
+curl -s -X POST http://localhost:4001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"<ADMIN_EMAIL>","password":"<ADMIN_PASSWORD>"}'
 
-curl -s -H "Authorization: Bearer <token>" http://localhost:4000/api/pacientes
+curl -s -H "Authorization: Bearer <token>" http://localhost:4001/api/pacientes
 ```
 
 `POST /api/auth/login` y `GET /api/health` son los **únicos endpoints públicos**. Cualquier otro
@@ -214,7 +233,7 @@ devuelve `401` sin un token válido.
 
 | Comando | Dónde | Qué hace |
 |---|---|---|
-| `npm run start:dev` | `backend/` | Servidor de desarrollo (puerto 4000) |
+| `npm run start:dev` | `backend/` | Servidor de desarrollo (puerto 4001) |
 | `npm run build` | `backend/` | Compila a `dist/main.js` |
 | `npm run lint` | ambos | Lint (debe dar 0 errores y 0 warnings) |
 | `npm run format` | ambos | Prettier |
@@ -222,7 +241,7 @@ devuelve `401` sin un token válido.
 | `npx prisma migrate status` | `backend/` | Estado de las migraciones |
 | `npx prisma studio` | `backend/` | Inspeccionar y editar datos |
 | `npx prisma db seed` | `backend/` | Carga catálogos y admin (idempotente) |
-| `npm run dev` | `frontend/` | Servidor de desarrollo (puerto 3000) |
+| `npm run dev` | `frontend/` | Servidor de desarrollo (puerto 3001) |
 | `npm run build` | `frontend/` | Build de producción |
 
 ---
@@ -283,23 +302,23 @@ Revisá `backend/.env`.
 Tiene que ser una lista separada por comas, sin espacios: `http://localhost:3000,http://localhost:3001`.
 Joi la transforma a array; si queda un espacio, el origen nunca coincide y el navegador bloquea.
 
-**`EADDRINUSE: address already in use :::4000`**
+**`EADDRINUSE: address already in use :::4001`**
 
 ```bash
-netstat -ano | findstr :4000
+netstat -ano | findstr :4001
 taskkill /PID <pid> /F
 ```
 
 ### Frontend
 
-**`next dev` arranca en el puerto 3001 en vez de 3000**
+**`next dev` arranca en un puerto distinto al esperado**
 
 Ocurre cuando el 3000 ya está ocupado. Next avisa por consola. Si es un caso puntual, agregá
 `http://localhost:3001` a `CORS_ORIGINS`; si no, liberá el 3000.
 
 **`Failed to fetch` en el navegador**
 
-Dos causas habituales: el backend no está corriendo en el 4000, o el origen del frontend no está en
+Dos causas habituales: el backend no está corriendo en el 4001, o el origen del frontend no está en
 `CORS_ORIGINS`. Revisá la pestaña Network y la respuesta de `OPTIONS` al endpoint.
 
 **`NEXT_PUBLIC_API_URL` no toma efecto**
@@ -354,6 +373,19 @@ en la siguiente consulta, así que la recuperación no necesita reinicio.
 Resuelto en la Fase 1. MySQL admite una sola columna `AUTO_INCREMENT` por tabla y `pacientes.id` ya
 la ocupa, así que el número de historia se escribe con el mismo valor que el `id`. Verificado en
 [`specs/03-esquema-bd.md`](./specs/03-esquema-bd.md) §3.1.
+
+### 5.5 DI-10 … DI-21 — lo que la Fase 2 tuvo que resolver
+
+La Fase 2 cerró con **9 desviaciones** y **3 bugs corregidos**. El detalle completo, con el motivo de
+cada una, está en [`specs/03-esquema-bd.md`](./specs/03-esquema-bd.md) §15 y en
+[`specs/fases/fase-02-bd-pacientes-auth.md`](./specs/fases/fase-02-bd-pacientes-auth.md) §10. Las
+tres que conviene conocer antes de tocar el código:
+
+| # | Qué pasó | Consecuencia práctica |
+|---|---|---|
+| **DI-14** | Prisma collationó las tablas en `utf8mb4_unicode_ci`, no en `utf8mb4_0900_ai_ci` | `q=jose` **no** encontraba `José`. El `COLLATE` quedó fijo a mano en `migration.sql` |
+| **DI-13** | MySQL rechaza `NOW()` dentro de un `CHECK` (error 3814) | Los `CHECK` de "fecha no futura" de `historias_clinicas` y `evoluciones` no existen; se validan en el DTO |
+| **DI-15** | `prisma migrate dev` necesita una base sombra y el usuario `app` no podía crearla | Se agregó el esquema `meregalasunahora_shadow` con su propia clave, en vez de abrirle permisos globales |
 
 ---
 
