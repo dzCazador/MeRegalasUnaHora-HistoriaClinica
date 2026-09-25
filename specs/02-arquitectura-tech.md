@@ -472,10 +472,40 @@ interface ApiError {
 
 1. `POST /api/auth/login` valida las credenciales contra el hash almacenado.
 2. El backend emite un **JWT** con los claims: `sub` (id), `usuario`, `nombre`, `rol`, `iss`, `aud`, `iat`, `exp`.
-3. El frontend guarda el token en cookie **HttpOnly** (`SameSite=Lax`, `Secure` en producción) y lo envía en `Authorization: Bearer <JWT>`.
+3. El frontend guarda el token en cookie **HttpOnly** (`SameSite=Lax`, `Secure` en producción, `Path=/`, `Max-Age` acotado a la vida del JWT) y lo envía en `Authorization: Bearer <JWT>`.
 4. `JwtAuthGuard` está registrado **globalmente** con `APP_GUARD`: todos los endpoints requieren token salvo los marcados con `@Public()`.
 5. `RolesGuard` evalúa el decorador `@Roles(...)` en los endpoints de gestión.
 6. `proxy.ts` (middleware de Next.js) valida la sesión **antes de renderizar** cada ruta protegida.
+
+> **DI-01 — RESUELTA (2026-09-25, Fase 4): opción A, BFF de Next.**
+>
+> El paso 3, tal como estaba escrito, no es realizable: una cookie `HttpOnly` **no se puede leer desde
+> el JavaScript del navegador**, así que el `fetch` del cliente no puede armar el encabezado
+> `Authorization`. Implementar el punto 3 al pie de la letra obligaba a elegir entre romper RN-06 o no
+> funcionar.
+>
+> Lo que se implementó, en `frontend/`:
+>
+> | Pieza | Dónde | Qué hace |
+> |---|---|---|
+> | Login | `app/api/auth/login/route.ts` | Llama al backend y deja el token **sólo** en la cookie `HttpOnly`. El cuerpo de la respuesta no lleva `accessToken` |
+> | Logout | `app/api/auth/logout/route.ts` | Borra la cookie. `204` sin cuerpo |
+> | BFF | `app/api/proxy/[...path]/route.ts` | Lee la cookie, agrega `Authorization: Bearer` y reenvía al backend. **Prohibido** reenviar cookies del navegador |
+>
+> Reglas que quedaron fijadas por la implementación:
+>
+> 1. El navegador **nunca** habla con NestJS. `app/services/` llama a `/api/proxy/...`, y sólo el
+>    Route Handler del servidor conoce la URL del backend.
+> 2. La variable es **`API_URL`, sin `NEXT_PUBLIC_`**. Con el prefijo quedaría en el bundle del
+>    cliente y cualquiera podría saltear el BFF (DI-25).
+> 3. `proxy.ts` exime **`/api/*` entera**, no sólo login y logout: un endpoint de API contesta con su
+>    propio código (`401` en JSON), no redirige. Si `/api/proxy` devolviera un 307, el `fetch` del
+>    cliente seguiría el redirect y parsearía el HTML del login como si fuera JSON (DI-26).
+> 4. `POST /api/auth/login` **no** pasa por el BFF: es la única ruta del backend que no lleva token,
+>    y el proxy la rechaza a propósito. Va directo a su Route Handler.
+>
+> Verificado: el token no aparece en `localStorage`, `sessionStorage` ni en el código del cliente, y
+> `/dashboard` sin sesión devuelve el redirect y no el HTML protegido.
 
 ### 8.2 Reglas obligatorias
 

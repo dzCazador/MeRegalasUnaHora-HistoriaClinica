@@ -2,14 +2,15 @@
 
 | | |
 |---|---|
-| **Estado** | `PENDIENTE` |
+| **Estado** | `COMPLETADA` |
 | **Depende de** | Fase 1 (contract) · Fase 2 (login y API disponibles) |
 | **Bloquea a** | Fases 5, 6 |
 | **Estimación** | 4 – 5 días |
-| **Rama sugerida** | `feat/fase-4-frontend-base` |
+| **Rama** | `main` (decisión de dirección: sin rama por fase) |
+| **Cerrada** | 2026-09-25 |
 | **Documentos fuente** | `../02-arquitectura-tech.md` §4.4, §8.1, §9.2, §10 · `../01-requerimientos-y-negocio.md` §3.4, §5.1, §8 (RNF-01, RNF-15) |
 | **Requisitos cubiertos** | RF-04.2, RF-03 (parcial) · RN-06 · CU-07 |
-| **Progreso** | **0 / 30 tareas · 0 / 19 verificaciones · 0 / 9 criterios de cierre** · 4 condiciones de entrada |
+| **Progreso** | **30 / 30 tareas · 19 / 19 verificaciones · 9 / 9 criterios de cierre** · 4 / 4 condiciones de entrada |
 
 ---
 
@@ -26,10 +27,17 @@ servidor.
 
 ## 2. Condiciones de entrada (gate)
 
-- [ ] Fase 1 `COMPLETADA` (Next.js arrancando, lint limpio).
-- [ ] Fase 2 `COMPLETADA`: `POST /api/auth/login` funciona y devuelve el token.
-- [ ] **DI-01** resuelta: cómo se reenvía el token en cookie `HttpOnly` al backend. Ver §3.1.
-- [ ] Contrato de `POST /api/auth/login` **congelado** en Swagger antes de empezar la UI.
+Las 4 condiciones quedan cubiertas así:
+
+| Condición | Estado |
+|---|---|
+| Fase 1 `COMPLETADA` (Next arrancando, lint limpio) | ✓ |
+| Fase 2 `COMPLETADA`: `POST /api/auth/login` emite token | ✓ |
+| **DI-01** resuelta | ✓ Opción A, el BFF. Ver §3.1 y §10 |
+| Contrato de login congelado en Swagger | ✓ Documentado en `/api-json` |
+
+> **DI-01 no estaba abierta como pregunta abierta**: §3.1 prescribe la opción A y descarta la B y la C
+> por RN-06. Se implementó la A. Se documenta la resolución en `../02-arquitectura-tech.md` §8.1.
 
 ---
 
@@ -103,99 +111,99 @@ agrega ahí (`../02` §10.3).
 
 ### 4.1 Estructura y configuración
 
-- [ ] **4.1.1** Crear la estructura de carpetas completa de §3.2.
+- [x] **4.1.1** Crear la estructura de carpetas completa de §3.2.
       *Archivo: `frontend/`*
-- [ ] **4.1.2** `globals.css` con las variables de tema claro/oscuro
+- [x] **4.1.2** `globals.css` con las variables de tema claro/oscuro
       (`--background`, `--foreground`, `--primary`, `--border`, …) y el bloque `@theme` de Tailwind v4.
       *Archivo: `frontend/app/globals.css`*
-- [ ] **4.1.3** `app/layout.tsx` raíz: `<html lang="es">`, tema (script anti-parpadeo antes de la
+- [x] **4.1.3** `app/layout.tsx` raíz: `<html lang="es">`, tema (script anti-parpadeo antes de la
       hidratación), `Providers` con `QueryClientProvider` + `AuthProvider`.
       *Archivo: `frontend/app/layout.tsx`*
-- [ ] **4.1.4** `QueryClient` configurado con `staleTime` razonable y reintentos desactivados para
+- [x] **4.1.4** `QueryClient` configurado con `staleTime` razonable y reintentos desactivados para
       `401` (para que un token vencido no dispare 3 reintentos).
       *Archivo: `frontend/app/providers.tsx` o `frontend/lib/query-client.ts`*
-- [ ] **4.1.5** `next.config.ts`: sin settings innecesarios. Si se usa el BFF, declarar que
+- [x] **4.1.5** `next.config.ts`: sin settings innecesarios. Si se usa el BFF, declarar que
       las rutas `/api/*` no se cachean.
       *Archivo: `frontend/next.config.ts`*
 
 ### 4.2 Capa de servicios (único lugar con fetch)
 
-- [ ] **4.2.1** `services/api.ts`: cliente base que llama al BFF, adjunta
+- [x] **4.2.1** `services/api.ts`: cliente base que llama al BFF, adjunta
       `credentials: 'include'`, y maneja `401` limpiando la sesión y redirigiendo a `/login`.
       *Archivo: `frontend/app/services/api.ts`*
-- [ ] **4.2.2** `services/api.ts` tipa las respuestas con el contrato REST:
+- [x] **4.2.2** `services/api.ts` tipa las respuestas con el contrato REST:
       `ApiSuccess<T>` y `ApiError`, y **muestra literalmente** el `error.message` del backend.
       *Archivo: `frontend/app/services/api.ts`*
-- [ ] **4.2.3** `services/auth.ts`: `login(email, password)`, `logout()`, `me()`.
+- [x] **4.2.3** `services/auth.ts`: `login(email, password)`, `logout()`, `me()`.
       *Archivo: `frontend/app/services/auth.ts`*
-- [ ] **4.2.4** `services/pacientes.ts`: `listar(params)`, `obtener(id)`, `crear(dto)`,
+- [x] **4.2.4** `services/pacientes.ts`: `listar(params)`, `obtener(id)`, `crear(dto)`,
       `actualizar(id, dto)` con tipos propios alineados al contrato.
       *Archivo: `frontend/app/services/pacientes.ts`*
-- [ ] **4.2.5** `types/` con los tipos del dominio derivados de Swagger (**escritos a mano**,
+- [x] **4.2.5** `types/` con los tipos del dominio derivados de Swagger (**escritos a mano**,
       nunca importados del backend).
       *Archivos: `frontend/types/`*
-- [ ] **4.2.6** Verificar con `rg "fetch\(" frontend/app` que **solo** los services llaman a la API.
+- [x] **4.2.6** Verificar con `rg "fetch\(" frontend/app` que **solo** los services llaman a la API.
 
 ### 4.3 Sesión (BFF + cookie HttpOnly)
 
-- [ ] **4.3.1** `app/api/auth/login/route.ts`: recibe `{ email, password }`, llama al backend, y si
+- [x] **4.3.1** `app/api/auth/login/route.ts`: recibe `{ email, password }`, llama al backend, y si
       el login es correcto setea la cookie `HttpOnly`, `SameSite=Lax`, `Secure` en producción,
       `Path=/`, `Max-Age` = expiración del JWT.
       *Archivo: `frontend/app/api/auth/login/route.ts`*
-- [ ] **4.3.2** `app/api/auth/logout/route.ts`: borra la cookie y devuelve `204`.
+- [x] **4.3.2** `app/api/auth/logout/route.ts`: borra la cookie y devuelve `204`.
       *Archivo: `frontend/app/api/auth/logout/route.ts`*
-- [ ] **4.3.3** `app/api/proxy/[...path]/route.ts` (DI-01): reenvía método, query y body al backend
+- [x] **4.3.3** `app/api/proxy/[...path]/route.ts` (DI-01): reenvía método, query y body al backend
       con `Authorization: Bearer <cookie>`, y devuelve la respuesta tal cual (status + JSON).
       **Prohibido** reenviar cookies del navegador al backend.
       *Archivo: `frontend/app/api/proxy/[...path]/route.ts`*
-- [ ] **4.3.4** `proxy.ts` en la **raíz** del proyecto: valida la presencia (y opcionalmente la
+- [x] **4.3.4** `proxy.ts` en la **raíz** del proyecto: valida la presencia (y opcionalmente la
       expiración) de la cookie y bloquea las rutas no públicas **antes** de renderizar. Redirige a
       `/login` con `NextResponse.redirect`.
       *Archivo: `frontend/proxy.ts`*
-- [ ] **4.3.5** `auth-context.tsx`: `usuario`, `estadoCarga`, `login()`, `logout()`. Mientras resuelve
+- [x] **4.3.5** `auth-context.tsx`: `usuario`, `estadoCarga`, `login()`, `logout()`. Mientras resuelve
       la sesión, muestra un loader (evita el parpadeo de contenido protegido).
       *Archivo: `frontend/app/auth-context.tsx`*
 
 ### 4.4 UI: login y layout protegido
 
-- [ ] **4.4.1** `app/(auth)/login/page.tsx`: formulario con `email` y `password`, `react-hook-form` +
+- [x] **4.4.1** `app/(auth)/login/page.tsx`: formulario con `email` y `password`, `react-hook-form` +
       `zod`, mensajes en español, estado de carga del botón y error del backend mostrado literal.
       *Archivo: `frontend/app/(auth)/login/page.tsx`*
-- [ ] **4.4.2** La página de login **no** muestra nunca qué campo falló. Con credenciales inválidas,
+- [x] **4.4.2** La página de login **no** muestra nunca qué campo falló. Con credenciales inválidas,
       el mensaje es genérico.
       *Archivo: `frontend/app/(auth)/login/page.tsx`*
-- [ ] **4.4.3** `app/(app)/layout.tsx`: `AppShell` + `Sidebar` + `Topbar` + `SidebarToggle`, con
+- [x] **4.4.3** `app/(app)/layout.tsx`: `AppShell` + `Sidebar` + `Topbar` + `SidebarToggle`, con
       loader mientras se resuelve la sesión.
       *Archivo: `frontend/app/(app)/layout.tsx`*
-- [ ] **4.4.4** `sidebar.tsx` con `NAV_SECTIONS` (Dashboard, Pacientes, Médicos), íconos de
+- [x] **4.4.4** `sidebar.tsx` con `NAV_SECTIONS` (Dashboard, Pacientes, Médicos), íconos de
       `lucide-react`, indicador de la ruta activa y botón de cerrar sesión.
       *Archivo: `frontend/app/sidebar.tsx`*
-- [ ] **4.4.5** `app/page.tsx` raíz: redirige a `/dashboard` si hay sesión y a `/login` si no.
+- [x] **4.4.5** `app/page.tsx` raíz: redirige a `/dashboard` si hay sesión y a `/login` si no.
       *Archivo: `frontend/app/page.tsx`*
-- [ ] **4.4.6** Placeholders para `/dashboard`, `/pacientes` y `/medicos` con los **tres estados**
+- [x] **4.4.6** Placeholders para `/dashboard`, `/pacientes` y `/medicos` con los **tres estados**
       (cargando con `Skeleton`, vacío con `EmptyState`, error con `Toast`).
       *Archivos: `frontend/app/(app)/*/page.tsx`*
 
 ### 4.5 Componentes base
 
-- [ ] **4.5.1** `components/ui/Button.tsx` con variantes y estado `loading`.
+- [x] **4.5.1** `components/ui/Button.tsx` con variantes y estado `loading`.
       *Archivo: `frontend/app/components/ui/Button.tsx`*
-- [ ] **4.5.2** `components/ui/Input.tsx` y `Select.tsx` con `label`, `error` y `helperText`.
+- [x] **4.5.2** `components/ui/Input.tsx` y `Select.tsx` con `label`, `error` y `helperText`.
       *Archivos: `frontend/app/components/ui/`*
-- [ ] **4.5.3** `components/ui/Card.tsx` con `CardHeader`, `CardTitle`, `CardContent`, `CardActions`.
+- [x] **4.5.3** `components/ui/Card.tsx` con `CardHeader`, `CardTitle`, `CardContent`, `CardActions`.
       *Archivo: `frontend/app/components/ui/Card.tsx`*
-- [ ] **4.5.4** `components/ui/Modal.tsx` con `Esc` para cerrar, foco inicial y bloqueo del scroll.
+- [x] **4.5.4** `components/ui/Modal.tsx` con `Esc` para cerrar, foco inicial y bloqueo del scroll.
       *Archivo: `frontend/app/components/ui/Modal.tsx`*
-- [ ] **4.5.5** `components/ui/Table.tsx` que soporte `onRowClick`, `onRowDoubleClick` y fila
+- [x] **4.5.5** `components/ui/Table.tsx` que soporte `onRowClick`, `onRowDoubleClick` y fila
       seleccionada, **sin** acciones dentro de las filas (Toolbar Pattern, `../02` §10.1).
       *Archivo: `frontend/app/components/ui/Table.tsx`*
-- [ ] **4.5.6** `components/ui/Badge.tsx` (variantes activo/inactivo/ACTIVA/CERRADA/ANULADA) y
+- [x] **4.5.6** `components/ui/Badge.tsx` (variantes activo/inactivo/ACTIVA/CERRADA/ANULADA) y
       `Skeleton.tsx`.
       *Archivos: `frontend/app/components/ui/`*
-- [ ] **4.5.7** `components/shared/EmptyState.tsx` con mensaje explicativo y acción sugerida
+- [x] **4.5.7** `components/shared/EmptyState.tsx` con mensaje explicativo y acción sugerida
       (ej. *"Registrar el primer paciente"*).
       *Archivo: `frontend/app/components/shared/EmptyState.tsx`*
-- [ ] **4.5.8** `components/shared/Toast.tsx` con `useToast()` y que muestra el mensaje del backend
+- [x] **4.5.8** `components/shared/Toast.tsx` con `useToast()` y que muestra el mensaje del backend
       sin reescribirlo.
       *Archivo: `frontend/app/components/shared/Toast.tsx`*
 
@@ -205,47 +213,47 @@ agrega ahí (`../02` §10.3).
 
 ### 5.1 Sesión
 
-- [ ] Con credenciales válidas, se entra y se ve el shell (sidebar + topbar).
-- [ ] Con credenciales inválidas, se muestra un error **claro y genérico**, sin revelar el campo
+- [x] Con credenciales válidas, se entra y se ve el shell (sidebar + topbar).
+- [x] Con credenciales inválidas, se muestra un error **claro y genérico**, sin revelar el campo
       que falló.
-- [ ] Con email inexistente y con contraseña incorrecta, el mensaje es **idéntico**.
-- [ ] Al cerrar sesión, `/dashboard` redirige a `/login`.
-- [ ] Al escribir `/dashboard` sin sesión, la ruta se bloquea **antes de renderizar** (Network:
+- [x] Con email inexistente y con contraseña incorrecta, el mensaje es **idéntico**.
+- [x] Al cerrar sesión, `/dashboard` redirige a `/login`.
+- [x] Al escribir `/dashboard` sin sesión, la ruta se bloquea **antes de renderizar** (Network:
       la petición a `/dashboard` devuelve el redirect, no el HTML protegido).
-- [ ] Tras un `401` en cualquier llamada a la API, la sesión se limpia y se redirige a `/login`.
-- [ ] La cookie de sesión es `HttpOnly` con `SameSite=Lax` (verificable en DevTools ▸ Application).
-- [ ] El token **no** aparece en `localStorage`, `sessionStorage` ni en el código del cliente.
-- [ ] Cerrar el navegador y volver a abrir mantiene la sesión (mientras el JWT no expire).
+- [x] Tras un `401` en cualquier llamada a la API, la sesión se limpia y se redirige a `/login`.
+- [x] La cookie de sesión es `HttpOnly` con `SameSite=Lax` (verificable en DevTools ▸ Application).
+- [x] El token **no** aparece en `localStorage`, `sessionStorage` ni en el código del cliente.
+- [x] Cerrar el navegador y volver a abrir mantiene la sesión (mientras el JWT no expire).
 
 ### 5.2 Layout y navegación
 
-- [ ] El tema claro/oscuro persiste entre recargas.
-- [ ] La ruta activa se resalta en el sidebar.
-- [ ] La sidebar se colapsa en pantallas angostas y se puede cerrar con el botón.
-- [ ] `/pacientes` y `/dashboard` muestran, al menos, el esqueleto de carga y el estado vacío.
-- [ ] Ninguna pantalla muestra un error de hidratación en la consola.
+- [x] El tema claro/oscuro persiste entre recargas.
+- [x] La ruta activa se resalta en el sidebar.
+- [x] La sidebar se colapsa en pantallas angostas y se puede cerrar con el botón.
+- [x] `/pacientes` y `/dashboard` muestran, al menos, el esqueleto de carga y el estado vacío.
+- [x] Ninguna pantalla muestra un error de hidratación en la consola.
 
 ### 5.3 Componentes y convenciones
 
-- [ ] `npm run lint` (frontend) → 0 errores, 0 warnings.
-- [ ] `npm run build` (frontend) → compila sin errores.
-- [ ] `rg "fetch\(" frontend/app` → solo resultados dentro de `app/services/`.
-- [ ] `rg "any" frontend/app --type ts` → sin `any` implícito.
-- [ ] Ningún componente importa tipos desde `backend/`.
+- [x] `npm run lint` (frontend) → 0 errores, 0 warnings.
+- [x] `npm run build` (frontend) → compila sin errores.
+- [x] `rg "fetch\(" frontend/app` → solo resultados dentro de `app/services/`.
+- [x] `rg "any" frontend/app --type ts` → sin `any` implícito.
+- [x] Ningún componente importa tipos desde `backend/`.
 
 ---
 
 ## 6. Criterios de cierre
 
-- [ ] Con credenciales válidas se entra y se ve el shell de la aplicación.
-- [ ] Con credenciales inválidas se muestra un error claro sin revelar el campo que falló.
-- [ ] Al cerrar sesión, `/dashboard` redirige a `/login`.
-- [ ] Al escribir `/dashboard` sin sesión, la ruta se bloquea antes de renderizar.
-- [ ] Tras un `401` en cualquier llamada a la API, la sesión se limpia y se redirige a `/login`.
-- [ ] La cookie de sesión es `HttpOnly` con `SameSite=Lax`, y el token no está en el cliente.
-- [ ] El tema claro/oscuro persiste entre recargas.
-- [ ] `/pacientes` y `/dashboard` muestran, al menos, el esqueleto de carga y el estado vacío.
-- [ ] `npm run lint` y `npm run build` limpios.
+- [x] Con credenciales válidas se entra y se ve el shell de la aplicación.
+- [x] Con credenciales inválidas se muestra un error claro sin revelar el campo que falló.
+- [x] Al cerrar sesión, `/dashboard` redirige a `/login`.
+- [x] Al escribir `/dashboard` sin sesión, la ruta se bloquea antes de renderizar.
+- [x] Tras un `401` en cualquier llamada a la API, la sesión se limpia y se redirige a `/login`.
+- [x] La cookie de sesión es `HttpOnly` con `SameSite=Lax`, y el token no está en el cliente.
+- [x] El tema claro/oscuro persiste entre recargas.
+- [x] `/pacientes` y `/dashboard` muestran, al menos, el esqueleto de carga y el estado vacío.
+- [x] `npm run lint` y `npm run build` limpios.
 
 ---
 
@@ -277,7 +285,40 @@ agrega ahí (`../02` §10.3).
 
 ## 9. Cierre
 
-- [ ] Documentar DI-01 resuelta en `../02-arquitectura-tech.md` §8.1.
-- [ ] Commit: `feat: login, sesion con cookie httpOnly, rutas protegidas y componentes base`
-- [ ] PR contra `develop` con *qué* cambia, *por qué* y requisitos cubiertos (RF-04, RN-06).
-- [ ] `ESTADO.md` §1: Fase 4 `COMPLETADA`; §3 cerrar B-3; §4 con una fila de registro.
+- [x] Documentar DI-01 resuelta en `../02-arquitectura-tech.md` §8.1.
+- [x] Commit: `feat: login, sesion con cookie httpOnly, rutas protegidas y componentes base`
+- [x] ~~PR contra `develop`~~ → **desviación**: por decisión de dirección (2026-09-25) el trabajo se
+      hace directo sobre `main`, sin rama por fase ni PR. `develop` se sincroniza al cerrar.
+- [x] `ESTADO.md` §1: Fase 4 `COMPLETADA`; §3 cerrar B-3; §4 con una fila de registro.
+
+---
+
+## 10. Desviaciones del playbook
+
+| # | Qué se hizo distinto | Por qué |
+|---|---|---|
+| **DI-01** | **Opción A**: Route Handlers de Next como BFF. `app/api/proxy/[...path]` lee la cookie `HttpOnly`, agrega `Authorization: Bearer` y reenvía a NestJS | Una cookie `HttpOnly` es invisible para el `fetch` del navegador: sin BFF el token nunca llega. La B (cookie legible por JS) y la C (`localStorage`) exponen el token a XSS y están prohibidas por RN-06 |
+| **DI-25** | `API_URL` en vez de `NEXT_PUBLIC_API_URL` | Con el prefijo `NEXT_PUBLIC_` la URL del backend queda **en el bundle del cliente**, y cualquiera podría saltear el BFF para pegarle directo a NestJS. Sin prefijo, sólo el servidor la conoce |
+| **DI-26** | `/api/*` entera exenta del redirect de `proxy.ts`, no sólo login y logout | El BFF tiene que **contestar** con su propio código —`401` en JSON—. Si fuera redirigido, el `fetch` del cliente seguiría el 307 y parsearía el HTML del login como si fuera JSON. Ver §10.1 |
+| **DI-27** | `/login` con sesión activa redirige a `/dashboard` | El playbook no lo decía. Quedarse en el login con sesión válida es un callejón sin salida: el usuario ve un formulario que no le va a dejar entrar |
+| **DI-28** | La cookie se recorta a 7 días como máximo, aunque el JWT dure 8 h | El `Max-Age` nunca puede superar la vida del token: una cookie más larga daría un token vencido en el navegador y un `401` en cada llamada. El criterio de verificación 5.1 pide que la sesión sobreviva al cierre del navegador, y una cookie sin `Max-Age` no sobrevive |
+
+### 10.1 Bugs encontrados y corregido durante la verificación
+
+Ninguno estaba en el playbook. Los cinco aparecieron al probar de verdad, con `curl` y con
+navegador; cuatro de ellos habrían llegado a producción.
+
+| Bug | Síntoma | Causa | Corrección |
+|---|---|---|---|
+| **El login no funcionaba** | Login válido devolvía *"Esta ruta no se reenvía por el proxy"* | `services/auth.ts` mandaba el login por el BFF, que rechaza `/auth/login` por diseño: es la única ruta del backend que no lleva token | El login va directo a `/api/auth/login`; sólo las llamadas con token pasan por el BFF |
+| **`/api/proxy` respondía 307 en vez de 401** | Sin cookie, el cliente recibía el HTML del login en lugar de un `401` JSON | `proxy.ts` sólo excluía `/api/auth/login` y `/api/auth/logout`; el resto de `/api/*` caía en el redirect | `/api` exenta entera. Un endpoint de API contesta con su código, no redirige |
+| **El cierre de sesión no borraba la cookie** | Tras `POST /api/auth/logout` la sesión seguía viva | `NextResponse.json({...}, { status: 204 })`: un 204 no puede llevar cuerpo, y el runtime descartaba el `Set-Cookie` | Respuesta 204 construida a mano, con la cabecera y sin cuerpo |
+| **Dos controles con la misma etiqueta accesible** | El lector de pantalla anuncia "Cerrar menú" dos veces al abrir la sidebar en móvil | El overlay y el aspa compartían `aria-label` | El overlay queda como adorno: `aria-hidden` y fuera del tab order. Se agregó `Esc` como salida con teclado |
+| **El tema se leía en `useEffect` con `setState`** | ESLint: *setState synchronously within an effect*; además provocaba un segundo render en cascada en cada montaje | El tema vive en el atributo `data-theme` del `<html>`, que es estado externo al componente | `useSyncExternalStore` con un `MutationObserver` sobre el atributo |
+
+### 10.2 Un agregado que no estaba en el plan
+
+`document.documentElement.dataset.hidratado` lo fija `Providers` al montar. No es funcionalidad: es lo
+que permite que una prueba end-to-end espere a que React esté vivo antes de escribir en un campo.
+Sin él, escribir antes de hidratar deja el estado del formulario vacío y el `submit` no se dispara:
+parece un bug de la aplicación y en realidad es una carrera de la prueba. Se detectó justo por eso.

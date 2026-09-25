@@ -14,8 +14,8 @@ atiende población en situación de calle. Implementa el formulario de admisión
 
 | | |
 |---|---|
-| **Fase actual** | 2 — Modelo de BD, pacientes y autenticación ✅ |
-| **Progreso MVP** | 2 / 7 fases |
+| **Fase actual** | 4 — Frontend base y enrutamiento ✅ |
+| **Progreso MVP** | 4 / 7 fases |
 | **Stack congelado** | Sí (`specs/02-arquitectura-tech.md`) |
 | **Base de datos** | MySQL 8 · `utf8mb4` · `utf8mb4_0900_ai_ci` |
 
@@ -171,7 +171,7 @@ ADMIN_PASSWORD="<clave-del-admin-inicial>"
 **`frontend/.env.local`**
 
 ```dotenv
-NEXT_PUBLIC_API_URL=http://localhost:4001
+API_URL=http://localhost:4001
 ```
 
 Generar un secreto adequado:
@@ -321,10 +321,10 @@ Ocurre cuando el 3000 ya está ocupado. Next avisa por consola. Si es un caso pu
 Dos causas habituales: el backend no está corriendo en el 4001, o el origen del frontend no está en
 `CORS_ORIGINS`. Revisá la pestaña Network y la respuesta de `OPTIONS` al endpoint.
 
-**`NEXT_PUBLIC_API_URL` no toma efecto**
-
-Las variables `NEXT_PUBLIC_*` se inlinean **en build**. Hay que reiniciar `next dev` después de
-cambiarla, y en producción reconstruir.
+**`API_URL` no toma efecto, o el login falla con 401**
+Las variables del frontend se leen **en el servidor**: `API_URL` sin prefijo, porque la usan los
+Route Handlers de Next para hablar con NestJS (ver [DI-01](#53-di-01--resuelta-2026-09-25-opción-a-bff-de-next)).
+Si tocás `.env.local` mientras corre `next dev`, reiniciá el servidor.
 
 ### Prisma
 
