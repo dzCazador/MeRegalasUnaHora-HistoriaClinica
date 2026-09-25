@@ -1,0 +1,75 @@
+# Estado de Avance
+
+> Registro de avance del proyecto. **Se actualiza al cerrar cada fase.**
+> Es lo primero que lee el agente antes de ejecutar una fase.
+
+---
+
+## 1. Vista general
+
+| Fase | Nombre | Estado | Fecha inicio | Fecha fin | Rama | PR |
+|---|---|---|---|---|---|---|
+| 1 | Setup inicial de repositorios | `PENDIENTE` | — | — | — | — |
+| 2 | Modelo de BD, pacientes y autenticación | `BLOQUEADA` (dep. 1) | — | — | — | — |
+| 3 | Historias clínicas y evoluciones | `BLOQUEADA` (dep. 2) | — | — | — | — |
+| 4 | Frontend base y enrutamiento | `BLOQUEADA` (dep. 1) | — | — | — | — |
+| 5 | UI del formulario de admisión | `BLOQUEADA` (dep. 2, 3, 4) | — | — | — | — |
+| 6 | Dashboard de seguimiento | `BLOQUEADA` (dep. 3, 4) | — | — | — | — |
+| 7 | Impresión, exportación y auditoría | `BLOQUEADA` (dep. 5, 6) | — | — | — | — |
+
+**Fase actual:** ninguna.
+**Progreso total del MVP:** 0 / 7 fases.
+
+---
+
+## 2. Estados posibles
+
+| Estado | Significado |
+|---|---|
+| `PENDIENTE` | Lista para arrancar, sin bloqueos |
+| `EN CURSO` | En ejecución. **Ninguna otra fase puede empezar** |
+| `COMPLETADA` | Todos los criterios de cierre verificados con evidencia |
+| `PARCIAL` | Entregable parcial. Falta lo que figure en "Pendiente" de la fase |
+| `BLOQUEADA` | No se puede avanzar por una decisión o un problema externo |
+| `DESCARTADA` | Fuera del alcance del proyecto |
+
+---
+
+## 3. Bloqueos y decisiones pendientes
+
+Reglas para el agente: si algo de esta tabla afecta a la fase que va a ejecutar, **se detiene y pregunta**.
+
+| # | Ítem | Tipo | Bloquea a | Responsable | Estado |
+|---|---|---|---|---|---|
+| B-1 | Preguntas abiertas 1–8 de `../01-requerimientos-y-negocio.md` §12 | Requisito | Fase 2 | Dirección de la organización | `ABIERTA` |
+| B-2 | Estrategia de pruebas automatizadas (DI-08) | Proceso | Fase 2 | Dirección del proyecto | `ABIERTA` |
+| B-3 | DI-01 — BFF de Next.js para el token en cookie HttpOnly | Técnica | Fase 4 | Dirección técnica | `PROPUESTA` |
+| B-4 | DI-02 — Generación de `numero_historia` | Técnica | Fase 2 | Dirección técnica | `PROPUESTA` |
+| B-5 | DI-05 — Código HTTP para evolución en historia cerrada (422 vs 409) | Técnica | Fase 3 | Dirección técnica | `PROPUESTA` |
+| B-6 | DI-07 — Cantidad de campos del formulario (16 vs 14) | Documental | Fase 5 | Dirección técnica | `PROPUESTA` |
+| B-7 | Puestos de atención concretos para `operativos` | Requisito | Fase 6 | Organización | `ABIERTA` |
+
+---
+
+## 4. Registro de ejecuciones
+
+Una fila por intento de fase. Conservar el historial: sirve para no repetir errores.
+
+| Fecha | Fase | Resultado | Duración | Observación |
+|---|---|---|---|---|
+| — | — | — | — | — |
+
+---
+
+## 5. Métricas del MVP
+
+| Dato | Valor |
+|---|---|
+| Fases completadas | 0 / 7 |
+| Tareas de implementación | 214 (27 + 44 + 26 + 30 + 36 + 23 + 28) |
+| Verificaciones | 178 |
+| Criterios de cierre | 76 |
+| Días de trabajo estimados restantes | 31 – 45 |
+| Requisitos funcionales cubiertos | 0 / 7 RF |
+| Casos de uso verificados | 0 / 7 CU |
+| Desviación acumulada | — |
