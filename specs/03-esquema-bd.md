@@ -153,8 +153,8 @@ Contiene los datos de identificación del paciente (**Bloque B** del formulario)
 
 | # | Columna | Tipo | Null | Default | Descripción |
 |---|---|---|---|---|---|
-| 1 | `id` | `BIGINT UNSIGNED` | NO | AUTO_INCREMENT | PK |
-| 2 | `numero_historia` | `INT UNSIGNED` | NO | AUTO_INCREMENT | **Número de Historia** (correlativo, inmutable) |
+| 1 | `id` | `BIGINT UNSIGNED` | NO | AUTO_INCREMENT | PK. **Única** columna `AUTO_INCREMENT` de la tabla |
+| 2 | `numero_historia` | `INT UNSIGNED` | NO | — (derivado de `id`) | **Número de Historia** (correlativo, inmutable). Sin `AUTO_INCREMENT` propio: se asigna con `id` en el mismo `INSERT` (DI-02) |
 | 3 | `apellido` | `VARCHAR(80)` | NO | — | Apellido |
 | 4 | `nombre` | `VARCHAR(80)` | NO | — | Nombre |
 | 5 | `documento` | `VARCHAR(20)` | **SÍ** | `NULL` | Documento. Anulable (RN-01) |
@@ -196,6 +196,19 @@ CONSTRAINT `ck_pacientes_edad` CHECK (`edad` BETWEEN 0 AND 120)
 ```
 
 > **Nota crítica sobre el índice `uq_pacientes_documento`:** en MySQL los valores `NULL` **no** colisionan en un índice `UNIQUE`, por lo que múltiples pacientes sin documento conviven sin conflicto. La cadena vacía `''` **sí** colisionaría: la capa de aplicación **debe** convertir `''` en `NULL` antes de insertar (ver RN-01).
+
+> **`numero_historia` y DI-02 — por qué no tiene `AUTO_INCREMENT`.** MySQL admite **una sola columna
+> `AUTO_INCREMENT` por tabla** y `pacientes.id` ya la ocupa. La resolución de DI-02 es que
+> `numero_historia` **se deriva de `id`**: el `INSERT` escribe el mismo valor en ambas columnas, por lo
+> que el correlativo es igual al `id` asignado. No hay contador ni tabla de secuencias. Consecuencias:
+>
+> | Consecuencia | Detalle |
+> |---|---|
+> | Correlativo global | Los números de historia son correlativos de toda la organización, no por sede (ver pregunta 1 de `../01-requerimientos-y-negocio.md` §12) |
+> | Sin huecos | `AUTO_INCREMENT` no se recyclea, así que un paciente dado de baja lógica (`activo = false`) deja su número reservado |
+> | Inserción | `INSERT INTO pacientes (numero_historia, ...) VALUES (LAST_INSERT_ID(), ...)` en la misma transacción, o `create()` de Prisma con `numero_historia` reasignado desde el `id` devuelto |
+> | Revisión futura | Si la organización decide que el número es por operativo o con_digits de ancho fijo (pregunta 1 de §12), hace falta una tabla de secuencias y esta sección se reescribe |
+
 
 ### 3.2 `historias_clinicas` — Registro de cada ingreso
 
@@ -461,7 +474,7 @@ datasource db {
 
 model Paciente {
   id              BigInt    @id @default(autoincrement())
-  numeroHistoria  Int       @unique @default(autoincrement()) @map("numero_historia")
+  numeroHistoria  Int       @unique @map("numero_historia")
   apellido        String    @db.VarChar(80)
   nombre          String    @db.VarChar(80)
   documento       String?   @unique @db.VarChar(20)
@@ -636,7 +649,7 @@ La creación de un paciente implica **tres** inserciones. Deben ser atómicas:
 
 ```
 BEGIN
-  1. INSERT INTO pacientes (...) VALUES (...)            → obtiene numero_historia
+  1. INSERT INTO pacientes (...) VALUES (...)            → obtiene id; numero_historia = id (DI-02)
   2. INSERT INTO historias_clinicas (...) VALUES (...)   → obtiene id
   3. INSERT INTO evoluciones (...) VALUES (...)          → evolución inicial obligatoria
 COMMIT
@@ -646,12 +659,19 @@ Si la etapa 3 falla, se revierte el alta completa. **Nunca debe existir una hist
 
 **Implementación (Prisma):**
 
+`numero_historia` no tiene `AUTO_INCREMENT` (ver §3.1), así que se escribe en un segundo paso dentro de la
+misma transacción, cuando ya se conoce el `id` que MySQL asignó:
+
 ```typescript
 await this.prisma.$transaction(async (tx) => {
-  const paciente   = await tx.paciente.create({ data: datosPaciente });
-  const historia   = await tx.historiaClinica.create({ data: { pacienteId: paciente.id, ...datosIngreso } });
+  const paciente   = await tx.paciente.create({ data: { ...datosPaciente, numeroHistoria: 0 } });
+  const conNumero  = await tx.paciente.update({
+    where: { id: paciente.id },
+    data: { numeroHistoria: Number(paciente.id) },
+  });
+  const historia   = await tx.historiaClinica.create({ data: { pacienteId: conNumero.id, ...datosIngreso } });
   await tx.evolucion.create({ data: { historiaClinicaId: historia.id, ...evolucionInicial, medicoVoluntarioId: usuarioId } });
-  return { paciente, historia };
+  return { paciente: conNumero, historia };
 });
 ```
 

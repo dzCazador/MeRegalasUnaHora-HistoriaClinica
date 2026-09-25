@@ -1,0 +1,12 @@
+// Prisma 6 · configuración mínima de la Fase 1.
+// El modelo de datos de pacientes e historias llega en la Fase 2 (ver specs/03-esquema-bd.md).
+// Este archivo es la FUENTE DE VERDAD del modelo: si el código y el esquema discrepan, gana el esquema.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}

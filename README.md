@@ -227,6 +227,136 @@ devuelve `401` sin un token válido.
 
 ---
 
+## Troubleshooting
+
+### MySQL
+
+**`mysql: command not found` en Windows**
+
+El instalador de MySQL Server no siempre agrega `bin` al `PATH`. Verificá el servicio y usá la ruta
+completa:
+
+```bash
+sc query MySQL80
+"/c/Program Files/MySQL/MySQL Server 8.0/bin/mysql" -u root -p
+```
+
+O bien agregalo al `PATH` de forma permanente:
+
+```bash
+setx PATH "%PATH%;C:\Program Files\MySQL\MySQL Server 8.0\bin"
+```
+
+**`Access denied for user`** — la clave de `DATABASE_URL` no coincide, o el usuario no tiene permisos
+sobre el esquema. Recordá que el usuario de aplicación solo tiene permisos sobre
+`meregalasunahora_dev`, no acceso global.
+
+**`Unknown database 'meregalasunahora_dev'`** — la base no existe. Creala con el SQL de
+[Puesta en marcha](#2-base-de-datos-mysql).
+
+**`Error: 1253 - Access denied; you need (at least one of) the SUPER privilege(s)`** — `DATABASE_URL`
+apunta a `root` y Prisma intenta leer variables globales. Usá el usuario `app`.
+
+### Backend
+
+**El build genera `dist/src/main.js` en vez de `dist/main.js`**
+
+Ajustá `sourceRoot` en `backend/nest-cli.json` y `rootDir`/`include` en `backend/tsconfig.json`, y
+borrá `dist/` antes de recompilar. El entrypoint esperado es `dist/main.js`.
+
+**`TypeError [ERR_MODULE_NOT_FOUND]` o `Cannot find module './app.module'` al correr `node dist/main.js`**
+
+Faltan las extensiones `.js` en los imports relativos. Compilan bien con `tsc` pero fallan en runtime
+porque el backend es ESM. Revisá con:
+
+```bash
+rg "from '\./" backend/src
+```
+
+**`Config validation error: "JWT_SECRET" is required`**
+
+Es el comportamiento esperado: la aplicación **no arranca** si falta una variable obligatoria.
+Revisá `backend/.env`.
+
+**`CORS_ORIGINS` con espacios**
+
+Tiene que ser una lista separada por comas, sin espacios: `http://localhost:3000,http://localhost:3001`.
+Joi la transforma a array; si queda un espacio, el origen nunca coincide y el navegador bloquea.
+
+**`EADDRINUSE: address already in use :::4000`**
+
+```bash
+netstat -ano | findstr :4000
+taskkill /PID <pid> /F
+```
+
+### Frontend
+
+**`next dev` arranca en el puerto 3001 en vez de 3000**
+
+Ocurre cuando el 3000 ya está ocupado. Next avisa por consola. Si es un caso puntual, agregá
+`http://localhost:3001` a `CORS_ORIGINS`; si no, liberá el 3000.
+
+**`Failed to fetch` en el navegador**
+
+Dos causas habituales: el backend no está corriendo en el 4000, o el origen del frontend no está en
+`CORS_ORIGINS`. Revisá la pestaña Network y la respuesta de `OPTIONS` al endpoint.
+
+**`NEXT_PUBLIC_API_URL` no toma efecto**
+
+Las variables `NEXT_PUBLIC_*` se inlinean **en build**. Hay que reiniciar `next dev` después de
+cambiarla, y en producción reconstruir.
+
+### Prisma
+
+**`Environment variable not found: DATABASE_URL`** — falta `backend/.env` o `prisma` se corre desde
+otro directorio.
+
+**`prisma generate` falla con un error de schema** — se corrió antes de que existiera
+`backend/prisma/schema.prisma`, o el YAML tiene tabuladores en vez de espacios.
+
+---
+
+## 5. Decisiones de implementación (DI)
+
+Diferencias entre lo que dice la especificación y lo que realmente se instaló, con el motivo.
+El detalle de cada una está en el archivo de fase correspondiente.
+
+### 5.1 DI-10 — Prisma 6.19.3 en lugar de Prisma 5
+
+La especificación pide Prisma 5 y documenta el `datasource` con
+`url = env("DATABASE_URL")` en [`specs/03-esquema-bd.md`](./specs/03-esquema-bd.md) §7.
+
+Al instalar, `npm i prisma` resolvió a **`8.0.0-rc.17`**: una release candidate. La estable es la
+`7.10.0`, pero **Prisma 7 eliminó `url` del `datasource`**: la conexión pasa a `prisma.config.ts` más
+un driver adapter, y `@prisma/adapter-mysql` no existe en el registro. Eso habría invalidado todos
+los extractos de `schema.prisma` de la especificación.
+
+Decisión: **Prisma 6.19.3**, la estable más reciente que conserva la sintaxis documentada. La
+diferencia contra la especificación es una versión menor y no toca el modelo de datos.
+
+### 5.2 DI-11 — `GET /api/health` sin envoltorio y con `503`
+
+El contrato general de respuesta es `{ success, data, meta? }`, pero el health check devuelve
+`{ status, database, timestamp }` plano. Motivo: lo exige la verificación de la Fase 1 y es lo que
+un orquestador necesita leer sin desarmar nada. Cuando MySQL no responde devuelve **`503`**, no `200`
+con un cuerpo que dice que todo está mal.
+
+### 5.3 DI-12 — MySQL caído no tumba el proceso
+
+`PrismaService.onModuleInit` intenta `$connect()` y, si falla, **loguea y sigue**: el servicio
+arranca en modo degradado y `GET /api/health` reporta `database: "down"`. Sin esto, el error `P1001`
+mataba el proceso y el camino de "health check en base caída" era inalcanzable. Prisma reconecta solo
+en la siguiente consulta, así que la recuperación no necesita reinicio.
+
+### 5.4 DI-09 — `numero_historia` derivado de `id`
+
+Resuelto en la Fase 1. MySQL admite una sola columna `AUTO_INCREMENT` por tabla y `pacientes.id` ya
+la ocupa, así que el número de historia se escribe con el mismo valor que el `id`. Verificado en
+[`specs/03-esquema-bd.md`](./specs/03-esquema-bd.md) §3.1.
+
+---
+
 ## Documentación
 
 | Documento | Contenido |

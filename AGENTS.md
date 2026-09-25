@@ -160,7 +160,8 @@ pacientes/
 | DTOs | `class-validator` en todas las propiedades + `@Transform` para trim |
 | Respuesta OK | `{ success: true, data, meta? { total, page, limit, totalPages } }` |
 | Respuesta error | `{ success: false, error: { code, message, details?, path, timestamp } }` |
-| Swagger | `@ApiTags`, `@ApiOperation`, `@ApiResponse` en todos los endpoints |
+| Excepción | `GET /api/health` devuelve plano `{ status, database, timestamp }`, sin envoltorio. Es un sondeo para orquestadores: el `503` con `database: "down"` tiene que poder leerse sin desarmar nada |
+| Swagger | `@ApiTags`, `@ApiOperation`, `@ApiResponse` en todos los endpoints · UI en `/api` · documento OpenAPI en `/api-json` |
 | Lint | Oxlint + Prettier, **0 errores y 0 warnings** |
 
 ### 6.2 Frontend
