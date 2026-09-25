@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma, type Sexo } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -7,7 +7,9 @@ import {
   type MetaPaginacion,
 } from '../common/dto/paginacion.dto.js';
 import { normalizarDocumento } from '../common/utils/texto.js';
+import { exigirFechaNoFutura } from '../common/utils/fechas.js';
 import type { CreatePacienteDto } from './dto/create-paciente.dto.js';
+import type { CreatePacienteCompletoDto } from './dto/create-paciente-completo.dto.js';
 import type { UpdatePacienteDto } from './dto/update-paciente.dto.js';
 import type { QueryPacienteDto } from './dto/query-paciente.dto.js';
 import type { UsuarioAutenticado } from '../common/types/usuario-autenticado.js';
@@ -25,6 +27,12 @@ export interface ListadoPacientes {
   data: PacienteConCatalogos[];
   meta: MetaPaginacion;
 }
+
+/** Respuesta del alta completa: el paciente más los ids de lo que se creó con él. */
+export type AltaCompletaRespuesta = PacienteConCatalogos & {
+  historiaClinicaId: number;
+  evolucionInicialId: number;
+};
 
 /**
  * Columnas que acepta `CreatePacienteDto` y `UpdatePacienteDto`. Todas opcionales
@@ -49,6 +57,8 @@ interface DatosPaciente {
 
 @Injectable()
 export class PacientesService {
+  private readonly logger = new Logger(PacientesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -89,7 +99,7 @@ export class PacientesService {
   }
 
   /**
-   * `POST /api/pacientes` (tarea 2.5.8).
+   * `POST /api/pacientes` — alta simple, sólo el paciente (tarea 2.5.8).
    *
    * DI-02: MySQL admite una sola columna `AUTO_INCREMENT` por tabla y `id` ya la
    * ocupa, así que `numeroHistoria` se deriva del `id` que MySQL acaba de
@@ -121,6 +131,148 @@ export class PacientesService {
         data: { numeroHistoria: Number(paciente.id) },
         include: INCLUIR_CATALOGOS,
       });
+    });
+  }
+
+  /**
+   * `POST /api/pacientes` — alta **completa** del ingreso (tareas 3.4.1 a 3.4.5).
+   *
+   * Las tres inserciones van en una sola transacción y **todas usan `tx`**. Si
+   * una falla, no queda paciente sin historia ni historia sin evolución inicial
+   * (RF-01.4). Usar `this.prisma` dentro del callback abriría otra conexión y
+   * perdería la atomicidad.
+   *
+   * `medicoVoluntarioId` sale del token en las tres: mandarlo en el cuerpo no
+   * cambia la autoría, y el DTO no lo declara, así que el `ValidationPipe` lo
+   * rechaza con `400` (prohibición 5).
+   */
+  async crearCompleto(
+    dto: CreatePacienteCompletoDto,
+    autor: UsuarioAutenticado,
+  ): Promise<AltaCompletaRespuesta> {
+    // El DTO ya lo exige, pero el service se llama desde otros caminos y la
+    // garantía es de la transacción, no del controlador.
+    if (!dto.evolucionInicial?.detalle || dto.evolucionInicial.detalle.trim().length < 3) {
+      throw new BadRequestException('La evolución inicial es obligatoria y debe tener al menos 3 caracteres');
+    }
+
+    const datos = this.construirDatos(dto);
+    const medicoId = BigInt(autor.id);
+    const fecha = dto.fecha ? new Date(dto.fecha) : new Date();
+
+    exigirFechaNoFutura(fecha, 'fecha del ingreso');
+
+    const resultado = await this.prisma.$transaction(async (tx) => {
+      // 1. Paciente. DI-02: numeroHistoria se completa con el id ya asignado.
+      const paciente = await tx.paciente.create({
+        data: {
+          ...datos,
+          apellido: dto.apellido,
+          nombre: dto.nombre,
+          edad: dto.edad,
+          createdBy: medicoId,
+        },
+      });
+
+      const conNumero = await tx.paciente.update({
+        where: { id: paciente.id },
+        data: { numeroHistoria: Number(paciente.id) },
+      });
+
+      // 2. Historia. RN-02: la edad queda congelada con la de este ingreso.
+      const historia = await tx.historiaClinica.create({
+        data: {
+          pacienteId: conNumero.id,
+          fecha,
+          edadRegistrada: dto.edad,
+          motivoConsulta: dto.motivoConsulta,
+          representanteId: dto.representanteId ? BigInt(dto.representanteId) : null,
+          operativoId: dto.operativoId ? BigInt(dto.operativoId) : null,
+          tipoIngreso: dto.tipoIngreso ?? 'CONSULTA',
+          estado: 'ACTIVA',
+          medicoVoluntarioId: medicoId,
+        },
+      });
+
+      // 3. Evolución inicial. Obligatoria: si falla, se revierte todo.
+      const evolucion = await tx.evolucion.create({
+        data: {
+          historiaClinicaId: historia.id,
+          fecha: dto.evolucionInicial.fecha
+            ? new Date(dto.evolucionInicial.fecha)
+            : fecha,
+          detalle: this.construirDetalleInicial(dto),
+          medicoVoluntarioId: medicoId,
+        },
+      });
+
+      return { conNumero, historia, evolucion };
+    });
+
+    this.logger.log(
+      `Alta de ingreso registrada. historia=${resultado.historia.id} paciente=${resultado.conNumero.id}`,
+    );
+
+    const paciente = await this.prisma.paciente.findUniqueOrThrow({
+      where: { id: resultado.conNumero.id },
+      include: INCLUIR_CATALOGOS,
+    });
+
+    return {
+      ...paciente,
+      historiaClinicaId: Number(resultado.historia.id),
+      evolucionInicialId: Number(resultado.evolucion.id),
+    };
+  }
+
+  /**
+   * Sin representante, RN-03 se cumple asentando el motivo en la evolución
+   * inicial: la ausencia de un dato es un dato explícito, no un campo vacío.
+   */
+  private construirDetalleInicial(dto: CreatePacienteCompletoDto): string {
+    const encabezado = `Motivo de la consulta: ${dto.motivoConsulta}`;
+
+    if (dto.representanteId) {
+      return `${encabezado}\nAcompaña representante (id ${dto.representanteId}).`;
+    }
+
+    return `${encabezado}\nSin representante registrado.`;
+  }
+
+  /**
+   * `GET /api/pacientes/:id/historias` (tarea 3.3.6). Historial de ingresos
+   * ordenado por fecha descendente con desempate por `id`.
+   */
+  async listarHistorias(id: bigint) {
+    await this.prisma.paciente.findUniqueOrThrow({ where: { id }, select: { id: true } });
+
+    return this.prisma.historiaClinica.findMany({
+      where: { pacienteId: id },
+      include: {
+        medico: { select: { id: true, nombre: true, apellido: true } },
+        operativo: { select: { id: true, nombre: true } },
+      },
+      orderBy: [{ fecha: 'desc' }, { id: 'asc' }],
+    });
+  }
+
+  /**
+   * `GET /api/pacientes/:id/evoluciones` (tarea 3.3.7). Historial **unificado y
+   * cronológico** de todas las historias del paciente (RF-02.3).
+   *
+   * El filtro por `pacienteId` va en la misma consulta, no se une en memoria: si
+   * se hiciera mal, el historial traería evoluciones de otro paciente.
+   */
+  async listarEvoluciones(id: bigint) {
+    await this.prisma.paciente.findUniqueOrThrow({ where: { id }, select: { id: true } });
+
+    return this.prisma.evolucion.findMany({
+      where: { historiaClinica: { pacienteId: id } },
+      include: {
+        medico: { select: { id: true, nombre: true, apellido: true } },
+        historiaClinica: { select: { id: true, fecha: true, estado: true } },
+      },
+      orderBy: [{ fecha: 'desc' }, { id: 'asc' }],
     });
   }
 

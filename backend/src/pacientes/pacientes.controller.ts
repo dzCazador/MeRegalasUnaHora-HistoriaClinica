@@ -14,9 +14,16 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags }
 
 import { PacientesService } from './pacientes.service.js';
 import { CreatePacienteDto } from './dto/create-paciente.dto.js';
+import { CreatePacienteCompletoDto } from './dto/create-paciente-completo.dto.js';
 import { UpdatePacienteDto } from './dto/update-paciente.dto.js';
 import { COLUMNAS_PACIENTE, QueryPacienteDto } from './dto/query-paciente.dto.js';
 import { PacienteResponseDto } from './dto/paciente-response.dto.js';
+import { CreateIngresoDto } from '../historias-clinicas/dto/create-ingreso.dto.js';
+import { HistoriasClinicasService } from '../historias-clinicas/historias-clinicas.service.js';
+import {
+  EvolucionResponseDto,
+  HistoriaClinicaResponseDto,
+} from '../historias-clinicas/dto/historia-clinica-response.dto.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import type { UsuarioAutenticado } from '../common/types/usuario-autenticado.js';
 
@@ -24,7 +31,10 @@ import type { UsuarioAutenticado } from '../common/types/usuario-autenticado.js'
 @ApiBearerAuth('access-token')
 @Controller('pacientes')
 export class PacientesController {
-  constructor(private readonly pacientesService: PacientesService) {}
+  constructor(
+    private readonly pacientesService: PacientesService,
+    private readonly historiasService: HistoriasClinicasService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -64,8 +74,9 @@ export class PacientesController {
   @ApiOperation({
     summary: 'Registrar un paciente',
     description:
-      'En esta fase crea sólo el paciente. El número de historia se deriva del id en la ' +
-      'misma transacción (DI-02). La autoría sale del token, nunca del cuerpo.',
+      'Alta simple: crea **sólo** el paciente. Para el ingreso completo —paciente, historia y ' +
+      'evolución inicial en una transacción— usar `POST /api/pacientes/completo`. El número de ' +
+      'historia se deriva del id en la misma transacción (DI-02) y la autoría sale del token.',
   })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Paciente creado', type: PacienteResponseDto })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Datos inválidos' })
@@ -91,6 +102,40 @@ export class PacientesController {
     return this.pacientesService.crear(dto, usuario);
   }
 
+  @Post('completo')
+  @ApiOperation({
+    summary: 'Registrar el ingreso completo',
+    description:
+      'Alta transaccional del CU-01: paciente + historia clínica + evolución inicial en una sola ' +
+      'transacción. Si la evolución inicial falta o es inválida, **no** queda ni paciente ni ' +
+      'historia. `evolucionInicial` es obligatoria (RF-01.4). La autoría de las tres ' +
+      'inserciones sale del token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Ingreso registrado con su historia y su evolución inicial',
+    schema: {
+      allOf: [
+        { $ref: '#/components/schemas/PacienteResponseDto' },
+        {
+          type: 'object',
+          properties: {
+            historiaClinicaId: { type: 'number', example: 1 },
+            evolucionInicialId: { type: 'number', example: 1 },
+          },
+        },
+      ],
+    },
+  })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Falta la evolución inicial o un dato del Bloque B' })
+  @ApiResponse({ status: HttpStatus.CONFLICT, description: 'Documento repetido' })
+  crearCompleto(
+    @Body() dto: CreatePacienteCompletoDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.pacientesService.crearCompleto(dto, usuario);
+  }
+
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -106,5 +151,52 @@ export class PacientesController {
   @ApiResponse({ status: HttpStatus.CONFLICT, description: 'Documento repetido' })
   actualizar(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePacienteDto) {
     return this.pacientesService.actualizar(BigInt(id), dto);
+  }
+
+  @Post(':id/ingresos')
+  @ApiOperation({
+    summary: 'Registrar un segundo ingreso',
+    description:
+      'Nuevo ingreso de un paciente **existente**: crea la historia y su evolución inicial sin ' +
+      'tocar el paciente. El `numeroHistoria` no cambia —el número es del paciente, no del ' +
+      'ingreso— y la `edadRegistrada` de las historias anteriores queda congelada (RN-02).',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'Id del paciente.' })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Ingreso registrado', type: HistoriaClinicaResponseDto })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Datos del ingreso inválidos' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'No existe el paciente' })
+  @ApiResponse({ status: HttpStatus.UNPROCESSABLE_ENTITY, description: 'El paciente está dado de baja' })
+  registrarIngreso(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateIngresoDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.historiasService.registrarIngreso(BigInt(id), dto, usuario);
+  }
+
+  @Get(':id/historias')
+  @ApiOperation({
+    summary: 'Historial de ingresos del paciente',
+    description: 'Ordenado por fecha descendente con desempate por `id`.',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'Id del paciente.' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Ingresos', type: HistoriaClinicaResponseDto, isArray: true })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'No existe el paciente' })
+  listarHistorias(@Param('id', ParseIntPipe) id: number) {
+    return this.pacientesService.listarHistorias(BigInt(id));
+  }
+
+  @Get(':id/evoluciones')
+  @ApiOperation({
+    summary: 'Historial unificado de evoluciones',
+    description:
+      'Evoluciones de **todas** las historias del paciente, en orden cronológico descendente ' +
+      'por fecha clínica (RF-02.3).',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'Id del paciente.' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Evoluciones', type: EvolucionResponseDto, isArray: true })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'No existe el paciente' })
+  listarEvoluciones(@Param('id', ParseIntPipe) id: number) {
+    return this.pacientesService.listarEvoluciones(BigInt(id));
   }
 }

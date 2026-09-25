@@ -460,10 +460,16 @@ Médico → Detalle de historia → "Imprimir"
 
 | # | Paso | Resultado esperado |
 |---|---|---|
-| 1 | Cierra la historia clínica | Estado `CERRADA` |
-| 2 | Intenta agregar una evolución | `409 Conflict` — *"La historia clínica está cerrada"* |
-| 3 | Reabre la historia (como autor) | Estado `ACTIVA`, acción auditada |
+| 1 | Cierra la historia clínica | Estado `CERRADA`, `fecha_cierre` informada y nota de cierre registrada como evolución |
+| 2 | Intenta agregar una evolución | `422 Unprocessable Entity` — *"La historia clínica está cerrada"* |
+| 3 | Reabre la historia (como autor) | Estado `ACTIVA`, `fecha_cierre` en `NULL` |
 | 4 | Reintenta agregar la evolución | `201 Created` |
+
+> **Resolución de DI-05 (2026-09-25, Fase 3).** Este caso de uso decía `409 Conflict`; se implementó
+> **`422 Unprocessable Entity`**, que es lo que dice `../02-arquitectura-tech.md` §7.5. La petición está
+> bien formada —el cuerpo y las evoluciones son válidos—; lo que no se puede es aplicarla al estado
+> actual del recurso, que es exactamente lo que define 422. `409` sugeriría un conflicto con el estado
+> previo del recurso, que no es el caso. Verificado con `curl`.
 
 ### CU-06 — Búsqueda insensible a mayúsculas y acentos
 

@@ -39,6 +39,9 @@ export function codigoPorEstado(status: number): string {
     [HttpStatus.FORBIDDEN]: 'NO_AUTORIZADO',
     [HttpStatus.NOT_FOUND]: 'NO_ENCONTRADO',
     [HttpStatus.CONFLICT]: 'CONFLICTO',
+    // DI-05: registrar una evolución en una historia cerrada es 422, no 409. La
+    // petición está bien formada; lo que no se puede es aplicarla al estado actual.
+    [HttpStatus.UNPROCESSABLE_ENTITY]: 'NO_APLICABLE',
   };
 
   return codigos[status as HttpStatus] ?? 'ERROR';
