@@ -1,7 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Sexo } from '@prisma/client';
+import { EstadoHistoria, Sexo } from '@prisma/client';
 
 import { PaginacionDto } from '../../common/dto/paginacion.dto.js';
 
@@ -105,6 +105,17 @@ export class QueryPacienteDto extends PaginacionDto {
   @IsOptional()
   @IsString({ message: 'La fecha hasta debe ser texto' })
   hasta?: string;
+
+  @ApiPropertyOptional({
+    enum: ['ACTIVA', 'CERRADA', 'ANULADA'],
+    description:
+      'Filtra por el estado de las historias clínicas del paciente. Por ejemplo, ' +
+      '`CERRADA` deja sólo los pacientes con al menos una historia cerrada, que es ' +
+      'la consulta de "casos ya resueltos".',
+  })
+  @IsOptional()
+  @IsEnum(EstadoHistoria, { message: 'El estado de la historia debe ser ACTIVA, CERRADA o ANULADA' })
+  estadoHistoria?: EstadoHistoria;
 
   @ApiPropertyOptional({ enum: COLUMNAS_PACIENTE, default: 'apellido' })
   @IsOptional()

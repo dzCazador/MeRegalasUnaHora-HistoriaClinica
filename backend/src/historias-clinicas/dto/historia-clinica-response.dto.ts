@@ -5,8 +5,11 @@ export class AutorResponseDto {
   @ApiProperty({ example: 1 })
   id: number;
 
-  @ApiProperty({ example: 'Administrador del Sistema' })
+  @ApiProperty({ example: 'José' })
   nombre: string;
+
+  @ApiProperty({ example: 'PÉREZ', description: 'El service selecciona nombre y apellido por separado.' })
+  apellido: string;
 }
 
 export class RepresentanteRefDto {

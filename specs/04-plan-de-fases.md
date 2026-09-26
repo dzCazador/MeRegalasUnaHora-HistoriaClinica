@@ -400,7 +400,7 @@ La pantalla que permite registrar un paciente completo: los bloques A, B, C y D 
 
 - [ ] El alta de un paciente completo crea paciente, historia y evolución, y muestra el N° de historia asignado.
 - [ ] La evolución inicial es obligatoria: sin ella no se puede enviar el formulario.
-- [ ] Los 14 campos del formulario están presentes y con la obligatoriedad definida en `01-requerimientos-y-negocio.md` §3.1.
+- [ ] Los 16 campos del formulario están presentes y con la obligatoriedad definida en `01-requerimientos-y-negocio.md` §3.1.
 - [ ] Al informar la fecha de nacimiento, la edad se calcula sola y sigue siendo editable.
 - [ ] Un paciente sin documento, fecha de nacimiento, domicilio ni teléfono se puede registrar sin errores.
 - [ ] Un segundo ingreso del mismo paciente crea una historia nueva sin duplicar el paciente.

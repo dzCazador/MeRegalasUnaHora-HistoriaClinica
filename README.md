@@ -14,8 +14,8 @@ atiende población en situación de calle. Implementa el formulario de admisión
 
 | | |
 |---|---|
-| **Fase actual** | 4 — Frontend base y enrutamiento ✅ |
-| **Progreso MVP** | 4 / 7 fases |
+| **Fase actual** | 5 — Formulario de admisión y seguimiento ✅ |
+| **Progreso MVP** | 5 / 7 fases |
 | **Stack congelado** | Sí (`specs/02-arquitectura-tech.md`) |
 | **Base de datos** | MySQL 8 · `utf8mb4` · `utf8mb4_0900_ai_ci` |
 

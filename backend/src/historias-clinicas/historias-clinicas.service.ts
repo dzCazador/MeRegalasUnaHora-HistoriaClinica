@@ -279,12 +279,17 @@ export class HistoriasClinicasService {
    * inicial: la ausencia de un dato es un dato explícito, no un campo vacío.
    */
   private construirDetalleInicial(dto: CreateIngresoDto): string {
-    const encabezado = `Motivo de la consulta: ${dto.motivoConsulta}`;
+    const pie = dto.representanteId
+      ? `Acompaña representante (id ${dto.representanteId}).`
+      : 'Sin representante registrado.';
 
-    if (dto.representanteId) {
-      return `${encabezado}\nAcompaña representante (id ${dto.representanteId}).`;
-    }
+    // Si el médico envió su nota, manda su nota: la línea de contexto del sistema
+    // se le agrega al pie, nunca al revés. Sin nota, se compone sólo el contexto,
+    // que es lo que pasaba antes de que el segundo ingreso aceptara la nota.
+    const nota = dto.evolucionInicial?.detalle.trim();
 
-    return `${encabezado}\nSin representante registrado.`;
+    return nota
+      ? `${nota}\n\n${pie}`
+      : `Motivo de la consulta: ${dto.motivoConsulta}\n${pie}`;
   }
 }

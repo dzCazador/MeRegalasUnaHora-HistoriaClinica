@@ -1,154 +1,422 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Search, UserPlus } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Download, Filter, Plus, RefreshCw, SquarePen } from 'lucide-react';
 
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { Card, CardContent, CardHeader } from '../../components/ui/Card';
-import { SkeletonFila } from '../../components/ui/Skeleton';
-import { EstadoVacio } from '../../components/shared/EmptyState';
-import { Tabla, type ColumnaTabla } from '../../components/ui/Table';
-import { Badge } from '../../components/ui/Badge';
-import { listar } from '../../services/pacientes';
-import { mensajeDeError } from '../../auth-context';
-import type { Paciente } from '@/types/dominio';
+import { Tabla, type ColumnaTabla } from '@/app/components/ui/Table';
+import { Button } from '@/app/components/ui/Button';
+import { Card } from '@/app/components/ui/Card';
+import { Skeleton } from '@/app/components/ui/Skeleton';
+import { Badge } from '@/app/components/ui/Badge';
+import { EstadoVacio } from '@/app/components/shared/EmptyState';
+import { Buscador } from '@/app/components/shared/Buscador';
+import { ModalEditarPaciente } from '@/app/components/pacientes/ModalEditarPaciente';
+import { useCatalogosFormulario, useListarPacientes } from '@/app/hooks/consultas';
+import type {
+  EstadoHistoria,
+  Paciente,
+  ParamsListadoPacientes,
+  Sexo,
+} from '@/types/dominio';
 
-const COLUMNAS: ColumnaTabla<Paciente>[] = [
-  {
-    clave: 'nh',
-    titulo: 'N.º historia',
-    render: (p) => <span className="font-medium tabular-nums">{p.numeroHistoria}</span>,
-  },
-  {
-    clave: 'apellido',
-    titulo: 'Apellido y nombre',
-    render: (p) => (
-      <span className="block max-w-[16rem] truncate">
-        {p.apellido}, {p.nombre}
-      </span>
-    ),
-  },
-  {
-    clave: 'documento',
-    titulo: 'Documento',
-    ocultarEnMovil: true,
-    // La ausencia de documento es un dato explícito, no un hueco en la grilla.
-    render: (p) => p.documento ?? <span className="text-muted-foreground">Sin documento</span>,
-  },
-  {
-    clave: 'edad',
-    titulo: 'Edad',
-    ocultarEnMovil: true,
-    render: (p) => <span className="tabular-nums">{p.edad}</span>,
-  },
-  {
-    clave: 'estado',
-    titulo: 'Estado',
-    render: (p) => <Badge variante={p.activo ? 'activo' : 'inactivo'}>{p.activo ? 'Activo' : 'Inactivo'}</Badge>,
-  },
+/**
+ * Listado de pacientes con Toolbar Pattern (`../02-arquitectura-tech.md` §10.1).
+ *
+ * **Las acciones viven todas en la toolbar; las filas no tienen un solo botón.** Un
+ * click selecciona la fila y doble click abre la edición, que es lo que hace `Table`.
+ *
+ * La búsqueda ignora mayúsculas y acentos porque el backend lo resuelve con el
+ * collation `utf8mb4_0900_ai_ci`: escribir `perez` encuentra `Pérez` sin que la
+ * pantalla tenga que normalizar nada (RF-03.6).
+ *
+ * Los filtros van en el **query string** de la petición, no sólo en el estado local:
+ * un filtro que no llega al backend es un filtro que no filtra.
+ */
+
+const SEXOS: { value: Sexo; label: string }[] = [
+  { value: 'F', label: 'Femenino' },
+  { value: 'M', label: 'Masculino' },
+  { value: 'X', label: 'Otro' },
+  { value: 'SIN_DATOS', label: 'Sin datos' },
 ];
 
-export default function PaginaPacientes() {
-  const [busqueda, setBusqueda] = useState('');
-  const [qAplicada, setqAplicada] = useState('');
-  const [seleccionado, setSeleccionado] = useState<number | null>(null);
+const ESTADOS_HISTORIA: { value: EstadoHistoria; label: string }[] = [
+  { value: 'ACTIVA', label: 'Con historia activa' },
+  { value: 'CERRADA', label: 'Con historia cerrada' },
+  { value: 'ANULADA', label: 'Con historia anulada' },
+];
 
-  const consulta = useQuery({
-    queryKey: ['pacientes', qAplicada],
-    queryFn: () => listar({ q: qAplicada || undefined, limit: 20 }),
-    // El error se muestra como toast con el mensaje literal del backend.
-    retry: false,
-  });
+function hc(numero: number): string {
+  return `HC-${String(numero).padStart(6, '0')}`;
+}
+
+function fechaCorta(iso: string): string {
+  return iso.slice(0, 10).split('-').reverse().join('/');
+}
+
+export default function PaginaPacientes() {
+  const router = useRouter();
+  const { data: catalogos } = useCatalogosFormulario();
+
+  const [busqueda, setBusqueda] = useState('');
+  const [filtros, setFiltros] = useState<Omit<ParamsListadoPacientes, 'q' | 'page' | 'limit'>>(
+    {},
+  );
+  const [pagina, setPagina] = useState(1);
+  const [seleccionado, setSeleccionado] = useState<number | null>(null);
+  const [editando, setEditando] = useState<Paciente | null>(null);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+
+  // Al cambiar cualquier filtro se vuelve a la página 1: quedarse en la 5 con un filtro
+  // nuevo deja una grilla vacía sin explicación.
+  function cambiarFiltro(clave: keyof typeof filtros, valor: string): void {
+    setPagina(1);
+    setSeleccionado(null);
+    setFiltros((anterior) => ({ ...anterior, [clave]: valor === '' ? undefined : valor }));
+  }
+
+  function limpiarFiltros(): void {
+    setPagina(1);
+    setSeleccionado(null);
+    setFiltros({});
+  }
+
+  const params: ParamsListadoPacientes = {
+    ...filtros,
+    q: busqueda === '' ? undefined : busqueda,
+    page: pagina,
+    limit: 20,
+  };
+
+  const { data, isLoading, isError, error, refetch, isFetching } = useListarPacientes(params);
+
+  const columnas: ColumnaTabla<Paciente>[] = [
+    {
+      clave: 'numeroHistoria',
+      titulo: 'N° historia',
+      render: (fila) => (
+        <Link
+          href={`/pacientes/${fila.id}`}
+          className="font-medium underline-offset-2 hover:underline"
+          onClick={(evento) => evento.stopPropagation()}
+        >
+          {hc(fila.numeroHistoria)}
+        </Link>
+      ),
+      className: 'whitespace-nowrap',
+    },
+    {
+      clave: 'apellido',
+      titulo: 'Apellido y nombre',
+      render: (fila) => (
+        <span>
+          {fila.apellido}, {fila.nombre}
+        </span>
+      ),
+    },
+    {
+      clave: 'documento',
+      titulo: 'Documento',
+      // RN-10: la ausencia de dato se dice, no se rellena.
+      render: (fila) => fila.documento ?? <span className="text-muted-foreground">sin datos</span>,
+      ocultarEnMovil: true,
+      className: 'whitespace-nowrap',
+    },
+    {
+      clave: 'edad',
+      titulo: 'Edad',
+      render: (fila) => fila.edad,
+      ocultarEnMovil: true,
+      className: 'text-right',
+    },
+    {
+      clave: 'sexo',
+      titulo: 'Sexo',
+      render: (fila) => (fila.sexo === 'SIN_DATOS' ? '—' : fila.sexo),
+      ocultarEnMovil: true,
+    },
+    {
+      clave: 'ultimo',
+      titulo: 'Último contacto',
+      render: (fila) => fechaCorta(fila.updatedAt),
+      ocultarEnMovil: true,
+      className: 'whitespace-nowrap text-muted-foreground',
+    },
+    {
+      clave: 'activo',
+      titulo: 'Estado',
+      render: (fila) => (
+        <Badge variante={fila.activo ? 'activo' : 'inactivo'}>
+          {fila.activo ? 'Activo' : 'Inactivo'}
+        </Badge>
+      ),
+    },
+  ];
+
+  const hayFiltros = Object.values(filtros).some((valor) => valor !== undefined && valor !== '');
+
+  // Estable: el debounce del buscador lo usa como dependencia de su efecto, y una
+  // función en línea lo reiniciaría en cada render del padre.
+  const alBuscar = useCallback((valor: string) => {
+    setBusqueda(valor);
+    setPagina(1);
+  }, []);
 
   return (
-    <div className="space-y-4">
-      {/* Toolbar: las acciones van acá, nunca dentro de las filas. */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <form
-          className="flex-1"
-          onSubmit={(evento) => {
-            evento.preventDefault();
-            setqAplicada(busqueda.trim());
-          }}
-        >
-          <Input
-            label="Buscar"
-            placeholder="Apellido, nombre, documento o número de historia"
-            value={busqueda}
-            onChange={(evento) => setBusqueda(evento.target.value)}
-          />
-        </form>
-        <Button
-          type="submit"
-          variante="secondary"
-          onClick={() => setqAplicada(busqueda.trim())}
-        >
-          <Search aria-hidden className="size-4" />
-          Buscar
-        </Button>
-        <Button disabled title="Llega en la Fase 5">
-          <UserPlus aria-hidden className="size-4" />
-          Registrar paciente
-        </Button>
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-semibold">Pacientes</h1>
+        <p className="text-muted-foreground text-sm">
+          Un click en la fila la selecciona, doble click abre la edición.
+        </p>
       </div>
 
-      <Card>
-        <CardHeader
-          title="Pacientes"
-          description={
-            consulta.data
-              ? `${consulta.data.meta.total} en total`
-              : 'Cargando…'
-          }
-        />
-        <CardContent className="p-0">
-          {consulta.isPending ? (
-            <div>
-              <SkeletonFila columnas={5} />
-              <SkeletonFila columnas={5} />
-              <SkeletonFila columnas={5} />
+      {/* Toolbar: TODAS las acciones de la grilla viven acá. */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={() => router.push('/pacientes/nuevo')}>
+            <Plus className="size-4" aria-hidden />
+            Nuevo
+          </Button>
+          <Button
+            variante="secondary"
+            disabled={seleccionado === null}
+            title={
+              seleccionado === null
+                ? 'Elegí un paciente de la lista para modificarlo'
+                : 'Modificar los datos de identificación'
+            }
+            onClick={() => {
+              const fila = data?.data.find((item) => item.id === seleccionado);
+              setEditando(fila ?? null);
+            }}
+          >
+            <SquarePen className="size-4" aria-hidden />
+            Modificar
+          </Button>
+          <Button variante="secondary" onClick={() => void refetch()} disabled={isFetching}>
+            <RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} aria-hidden />
+            Refrescar
+          </Button>
+          <Button variante="secondary" disabled title="Disponible desde la Fase 7">
+            <Download className="size-4" aria-hidden />
+            Exportar
+          </Button>
+          <Button
+            variante="ghost"
+            onClick={() => setFiltrosAbiertos((abierto) => !abierto)}
+            aria-expanded={filtrosAbiertos}
+          >
+            <Filter className="size-4" aria-hidden />
+            Filtros
+            {hayFiltros ? <span className="text-primary text-xs">· activos</span> : null}
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Buscador
+            valor={busqueda}
+            onCambio={alBuscar}
+            etiqueta="Buscar pacientes por apellido, nombre, documento o número de historia"
+            placeholder="Apellido, nombre, documento o N° de historia"
+            className="min-w-64 flex-1"
+          />
+          {isFetching ? <span className="text-muted-foreground text-xs">Buscando…</span> : null}
+        </div>
+
+        {filtrosAbiertos ? (
+          <div className="grid grid-cols-1 gap-3 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="flex flex-col gap-1 text-sm">
+              Sexo
+              <select
+                className="h-11 rounded-md border border-input bg-surface px-3"
+                value={filtros.sexo ?? ''}
+                onChange={(e) => cambiarFiltro('sexo', e.target.value)}
+              >
+                <option value="">Todos</option>
+                {SEXOS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm">
+              Nacionalidad
+              <select
+                className="h-11 rounded-md border border-input bg-surface px-3"
+                value={filtros.nacionalidadId ?? ''}
+                onChange={(e) => cambiarFiltro('nacionalidadId', e.target.value)}
+              >
+                <option value="">Todas</option>
+                {(catalogos?.nacionalidades ?? []).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm">
+              Estado civil
+              <select
+                className="h-11 rounded-md border border-input bg-surface px-3"
+                value={filtros.estadoCivilId ?? ''}
+                onChange={(e) => cambiarFiltro('estadoCivilId', e.target.value)}
+              >
+                <option value="">Todos</option>
+                {(catalogos?.estadosCiviles ?? []).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm">
+              Estado de la historia
+              <select
+                className="h-11 rounded-md border border-input bg-surface px-3"
+                value={filtros.estadoHistoria ?? ''}
+                onChange={(e) => cambiarFiltro('estadoHistoria', e.target.value)}
+              >
+                <option value="">Cualquiera</option>
+                {ESTADOS_HISTORIA.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm">
+              Ingresados desde
+              <input
+                type="date"
+                className="h-11 rounded-md border border-input bg-surface px-3"
+                value={filtros.desde ?? ''}
+                onChange={(e) => cambiarFiltro('desde', e.target.value)}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm">
+              Ingresados hasta
+              <input
+                type="date"
+                className="h-11 rounded-md border border-input bg-surface px-3"
+                value={filtros.hasta ?? ''}
+                onChange={(e) => cambiarFiltro('hasta', e.target.value)}
+              />
+            </label>
+
+            <div className="sm:col-span-2 lg:col-span-3">
+              <Button variante="ghost" onClick={limpiarFiltros} disabled={!hayFiltros}>
+                Limpiar filtros
+              </Button>
             </div>
-          ) : consulta.isError ? (
-            <EstadoVacio
-              titulo="No se pudo cargar la lista"
-              descripcion={mensajeDeError(consulta.error)}
-              accion={
-                <Button variante="secondary" onClick={() => void consulta.refetch()}>
-                  Reintentar
-                </Button>
-              }
-            />
-          ) : (
-            <Tabla
-              columnas={COLUMNAS}
-              filas={consulta.data.data}
-              claveFila={(p) => p.id}
-              filaSeleccionada={seleccionado}
-              alSeleccionar={(p) => setSeleccionado(p.id)}
-              vacio={
-                <EstadoVacio
-                  titulo={qAplicada ? 'Ningún paciente coincide' : 'Todavía no hay pacientes'}
-                  descripcion={
-                    qAplicada
-                      ? `No encontramos resultados para "${qAplicada}".`
-                      : 'Registrá el primer ingreso para empezar el seguimiento.'
-                  }
-                  accion={
-                    !qAplicada ? (
-                      <Button disabled title="Llega en la Fase 5">
-                        <UserPlus aria-hidden className="size-4" />
-                        Registrar el primer paciente
-                      </Button>
-                    ) : undefined
-                  }
-                />
-              }
-            />
-          )}
-        </CardContent>
+          </div>
+        ) : null}
+      </div>
+
+      <Card className="overflow-hidden">
+        {isLoading ? (
+          <div className="flex flex-col gap-2 p-4">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ) : isError ? (
+          <EstadoVacio
+            titulo="No se pudo cargar el listado"
+            descripcion={error instanceof Error ? error.message : 'Error desconocido'}
+            icono={<RefreshCw className="size-8" />}
+            accion={
+              <Button variante="secondary" onClick={() => void refetch()}>
+                Reintentar
+              </Button>
+            }
+          />
+        ) : (
+          <Tabla
+            columnas={columnas}
+            filas={data?.data ?? []}
+            claveFila={(fila) => fila.id}
+            filaSeleccionada={seleccionado}
+            alSeleccionar={(fila) => setSeleccionado(fila.id)}
+            onFilaDobleClick={(fila) => setEditando(fila)}
+            vacio={
+              <EstadoVacio
+                titulo={
+                  busqueda !== '' || hayFiltros
+                    ? 'Ningún paciente coincide con la búsqueda'
+                    : 'Todavía no hay pacientes'
+                }
+                descripcion={
+                  busqueda !== '' || hayFiltros
+                    ? 'Probá con menos palabras, o revisá los filtros.'
+                    : 'El primer ingreso crea el paciente, su historia y la evolución inicial.'
+                }
+                accion={
+                  busqueda === '' && !hayFiltros ? (
+                    <Button onClick={() => router.push('/pacientes/nuevo')}>
+                      <Plus className="size-4" aria-hidden />
+                      Registrar el primer paciente
+                    </Button>
+                  ) : (
+                    <Button
+                      variante="secondary"
+                      onClick={() => {
+                        setBusqueda('');
+                        limpiarFiltros();
+                      }}
+                    >
+                      Limpiar la búsqueda
+                    </Button>
+                  )
+                }
+              />
+            }
+          />
+        )}
       </Card>
+
+      {data && data.meta.totalPages > 1 ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-muted-foreground text-sm">
+            Página {data.meta.page} de {data.meta.totalPages} · {data.meta.total} pacientes
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variante="secondary"
+              disabled={pagina <= 1}
+              onClick={() => setPagina((actual) => Math.max(1, actual - 1))}
+            >
+              Anterior
+            </Button>
+            <Button
+              variante="secondary"
+              disabled={pagina >= data.meta.totalPages}
+              onClick={() => setPagina((actual) => actual + 1)}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      ) : data ? (
+        <p className="text-muted-foreground text-sm">
+          {data.meta.total} {data.meta.total === 1 ? 'paciente' : 'pacientes'}
+        </p>
+      ) : null}
+
+      <ModalEditarPaciente
+        paciente={editando}
+        abierto={editando !== null}
+        onCerrar={() => setEditando(null)}
+      />
     </div>
   );
 }

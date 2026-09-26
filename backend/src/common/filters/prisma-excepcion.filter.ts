@@ -35,6 +35,68 @@ const TRADUCCIONES: Record<string, Traduccion> = {
   },
 };
 
+/**
+ * Traduce el índice que chocó a un mensaje que diga **qué campo** repetir.
+ *
+ * Sin esto, el `409` de un documento repetido decía "Ya existe un registro con ese
+ * valor", que deja al médico sin saber si repetir el apellido, el documento o el
+ * teléfono.
+ *
+ * Se matchea por **sufijo del nombre del índice** y no por igualdad exacta, porque el
+ * nombre real en MySQL lo genera Prisma (`pacientes_documento_key`) mientras que
+ * `../03-esquema-bd.md` lo documenta como `uq_pacientes_documento`. Con las dos
+ * convenciones covered, el mensaje no depende de cuál se aplicó. El mapa es un
+ * allowlist cerrado: nunca texto que venga de la petición.
+ */
+const MENSAJES_POR_CAMPO: { terminaEn: string; mensaje: string }[] = [
+  { terminaEn: 'pacientes_documento_key', mensaje: 'Ya existe un paciente con ese documento' },
+  { terminaEn: 'pacientes_numero_historia_key', mensaje: 'Ese número de historia ya está asignado' },
+  { terminaEn: 'medicos_voluntarios_documento_key', mensaje: 'Ya existe un médico voluntario con ese documento' },
+  { terminaEn: 'medicos_voluntarios_email_key', mensaje: 'Ya existe un médico voluntario con ese email' },
+  { terminaEn: 'medicos_voluntarios_matricula_key', mensaje: 'Ya existe un médico voluntario con esa matrícula' },
+];
+
+/** Nombres de columna cuando Prisma los manda sueltos en vez del índice. */
+const MENSAJES_POR_COLUMNA: Record<string, string> = {
+  documento: 'Ya existe un paciente con ese documento',
+  email: 'Ya existe un médico voluntario con ese email',
+  matricula: 'Ya existe un médico voluntario con esa matrícula',
+};
+
+/** `meta.target` puede ser un string o un array de columnas. */
+function objetivoDe(excepcion: Prisma.PrismaClientKnownRequestError): string[] {
+  const objetivo = (excepcion.meta as { target?: unknown } | undefined)?.target;
+
+  if (typeof objetivo === 'string') {
+    return [objetivo];
+  }
+
+  if (Array.isArray(objetivo)) {
+    return objetivo.filter((item): item is string => typeof item === 'string');
+  }
+
+  return [];
+}
+
+/** `undefined` si el índice no está en el allowlist. */
+function mensajeDeConflicto(excepcion: Prisma.PrismaClientKnownRequestError): string | undefined {
+  for (const objetivo of objetivoDe(excepcion)) {
+    const porIndice = MENSAJES_POR_CAMPO.find((entrada) => objetivo.endsWith(entrada.terminaEn));
+
+    if (porIndice) {
+      return porIndice.mensaje;
+    }
+
+    const porColumna = MENSAJES_POR_COLUMNA[objetivo];
+
+    if (porColumna) {
+      return porColumna;
+    }
+  }
+
+  return undefined;
+}
+
 @Catch(Prisma.PrismaClientKnownRequestError)
 export class PrismaExcepcionFilter implements ExceptionFilter {
   private readonly logger = new Logger(PrismaExcepcionFilter.name);
@@ -65,12 +127,19 @@ export class PrismaExcepcionFilter implements ExceptionFilter {
       return;
     }
 
+    // Un `P2002` puede venir de cualquier índice UNIQUE. Si se reconoce, el mensaje
+    // nombra el campo; si no, queda el genérico.
+    const mensaje =
+      excepcion.code === 'P2002'
+        ? (mensajeDeConflicto(excepcion) ?? traduccion.mensaje)
+        : traduccion.mensaje;
+
     this.logger.warn(
-      `${peticion.method} ${peticion.originalUrl} → ${excepcion.code} ${traduccion.mensaje}`,
+      `${peticion.method} ${peticion.originalUrl} → ${excepcion.code} ${mensaje}`,
     );
 
     respuesta
       .status(traduccion.status)
-      .json(construirCuerpoError(peticion, excepcion.code, traduccion.mensaje));
+      .json(construirCuerpoError(peticion, excepcion.code, mensaje));
   }
 }

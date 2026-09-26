@@ -226,17 +226,23 @@ export class PacientesService {
   }
 
   /**
-   * Sin representante, RN-03 se cumple asentando el motivo en la evolución
-   * inicial: la ausencia de un dato es un dato explícito, no un campo vacío.
+   * El Bloque D del formulario es **obligatorio** y es lo que el médico escribió: se
+   * guarda tal cual, y sólo se le agregan al pie las líneas administrativas que
+   * aporta el sistema.
+   *
+   * Sin representante, RN-03 se cumple asentando la ausencia en la misma nota: la
+   * ausencia de un dato es un dato explícito, no un campo vacío.
+   *
+   * La nota va **primero** porque es el contenido clínico; las líneas de contexto
+   * quedan como pie. Un día se puede agregar el motivo como columna propia y este
+   * encabezado sobra.
    */
   private construirDetalleInicial(dto: CreatePacienteCompletoDto): string {
-    const encabezado = `Motivo de la consulta: ${dto.motivoConsulta}`;
+    const pie = dto.representanteId
+      ? `Acompaña representante (id ${dto.representanteId}).`
+      : 'Sin representante registrado.';
 
-    if (dto.representanteId) {
-      return `${encabezado}\nAcompaña representante (id ${dto.representanteId}).`;
-    }
-
-    return `${encabezado}\nSin representante registrado.`;
+    return `${dto.evolucionInicial.detalle.trim()}\n\n${pie}`;
   }
 
   /**
@@ -403,6 +409,12 @@ export class PacientesService {
         ...(query.desde ? { gte: new Date(query.desde) } : {}),
         ...(query.hasta ? { lte: new Date(query.hasta) } : {}),
       };
+    }
+
+    if (query.estadoHistoria) {
+      // Filtra por relación, no por subconsulta: el índice `ix_hc_paciente_estado`
+      // de `historias_clinicas` resuelve el caso sin tocar la tabla de pacientes.
+      where.historias = { some: { estado: query.estadoHistoria } };
     }
 
     return where;

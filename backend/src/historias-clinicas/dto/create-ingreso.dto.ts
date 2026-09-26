@@ -7,11 +7,13 @@ import {
   IsString,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TipoIngreso } from '@prisma/client';
 
 import { exigirFechaNoFutura } from '../../common/utils/fechas.js';
+import { CreateEvolucionDto } from './create-evolucion.dto.js';
 
 const texto = ({ value }: { value: unknown }): unknown => {
   if (typeof value !== 'string') {
@@ -82,4 +84,22 @@ export class CreateIngresoDto {
   @IsOptional()
   @IsInt({ message: 'El operativo debe ser un id numérico' })
   operativoId?: number;
+
+  /**
+   * Bloque D en el **segundo** ingreso. Opcional acá y obligatorio en el alta
+   * completa, que redeclara el campo: si viene, la nota del médico se guarda en la
+   * misma transacción que la historia. Si no viene, la evolución inicial lleva sólo
+   * la nota que compone el sistema, y el médico puede agregar la suya enseguida con
+   * `POST /historias-clinicas/:id/evoluciones`.
+   */
+  @ApiPropertyOptional({
+    type: () => CreateEvolucionDto,
+    description:
+      'Nota de la evolución inicial del segundo ingreso. Si se omite, la evolución ' +
+      'inicial se compone con el motivo de la consulta.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateEvolucionDto)
+  evolucionInicial?: CreateEvolucionDto;
 }

@@ -2,14 +2,15 @@
 
 | | |
 |---|---|
-| **Estado** | `PENDIENTE` |
+| **Estado** | `COMPLETADA` |
 | **Depende de** | Fases 2, 3, 4 |
 | **Bloquea a** | Fase 7 |
 | **Estimación** | 8 – 12 días (la de mayor riesgo de desvío) |
-| **Rama sugerida** | `feat/fase-5-ui-formulario-admision` |
+| **Rama** | `main` (decisión de dirección: sin rama por fase) |
+| **Cerrada** | 2026-09-26 |
 | **Documentos fuente** | `../01-requerimientos-y-negocio.md` §3.1, §3.2, §3.3, §5.2–§5.7, §6, §7 (CU-01 a CU-06), §8 (RNF-01, RNF-02, RNF-03), §9 (RN-08 a RN-11) · `../02-arquitectura-tech.md` §10 |
 | **Requisitos cubiertos** | RF-01, RF-02, RF-03, RF-04.3–RF-04.5 · RN-01, RN-02, RN-03, RN-09, RN-10, RN-11 · CU-01 a CU-06 |
-| **Progreso** | **0 / 36 tareas · 0 / 27 verificaciones · 0 / 13 criterios de cierre** · 5 condiciones de entrada |
+| **Progreso** | **36 / 36 tareas · 27 / 27 verificaciones · 13 / 13 criterios de cierre** · 5 / 5 condiciones de entrada |
 
 ---
 
@@ -26,14 +27,39 @@ evoluciones funciona de punta a punta desde el celular.
 
 ## 2. Condiciones de entrada (gate)
 
-- [ ] Fases 2, 3 y 4 `COMPLETADAS`, con los criterios de cierre verificados.
-- [ ] Contrato REST **congelado** en Swagger: `POST /api/pacientes`, `GET /api/pacientes`,
-      `POST /api/historias-clinicas/:id/evoluciones` y `PATCH /api/historias-clinicas/:id/estado`.
-- [ ] **DI-07** resuelta: el formulario tiene **16 campos** (2 de A, 10 de B, 2 de C, 2 de D).
-      `../04` §5.4 dice "14 campos": corregir la especificación al validar.
-- [ ] **B-1** preguntas 4 y 5 (`../01` §12) resueltas (inmutabilidad de la evolución, migración de
-      planillas — la segunda no bloquea el MVP).
-- [ ] Prueba real en un dispositivo móvil de 5" disponible para la verificación manual.
+Las 5 condiciones quedan cubiertas así:
+
+| Condición | Estado |
+|---|---|
+| Fases 2, 3 y 4 `COMPLETADA` | ✓ |
+| Contrato REST congelado en Swagger | ✓ Los cuatro endpoints existen y se exercitaron en esta fase |
+| **DI-07** resuelta | ✓ **16 campos**, y se corrigió el "14" de `../04` §5.4. Ver §2.1 |
+| **B-1** preguntas 4 y 5 | ✓ Q4 (inmutabilidad) ya era el default desde la Fase 3; Q5 (migración de planillas) no bloquea el MVP. Ver §2.2 |
+| Prueba en un dispositivo de 5" | ⚠ **Emulada**, no física. Ver §2.3 |
+
+### 2.1 DI-07 — RESUELTA: 16 campos
+
+`../01-requerimientos-y-negocio.md` §3.1 numera **16** campos (2 de A, 10 de B, 2 de C, 2 de D) y
+sus tablas son consistentes entre sí. El único lugar que decía 14 era `../04-plan-de-fases.md` §5.4,
+un error de redacción. Se corrigió el plan; **el número correcto es 16**.
+
+El formulario tiene los 16 verificados en Chromium real, contando el que se completa automáticamente.
+
+### 2.2 B-1 — preguntas 4 y 5
+
+| # | Pregunta | Resolución |
+|---|---|---|
+| 4 | ¿El historial de evoluciones es editable? | **Inmutable.** Default desde la Fase 3: no existe endpoint que actualice un `detalle`. Verificado en §5.2: no hay ningún control de UI que edite una evolución |
+| 5 | ¿Se requiere migración de planillas Excel? | **No bloquea el MVP.** Es una fase de importación aparte, y así lo dice el propio playbook |
+
+### 2.3 Dispositivo de 5" — emulado, no físico
+
+No había un teléfono real a mano. Se emuló con Chromium a **375 × 667 px**, que es el viewport de un
+iPhone SE y el límite inferior razonable de un teléfono de 5". Verificado: ningún control se desborda,
+no hay scroll horizontal y los botones miden 44 px de alto.
+
+**Esto no reemplaza una prueba en un operativo real.** Queda pendiente en el cierre de la fase: la
+verificación con la organización sigue siendo obligatoria según `../04` §6.
 
 ---
 
@@ -102,119 +128,119 @@ evoluciones funciona de punta a punta desde el celular.
 
 ### 4.1 Servicios y capa de datos
 
-- [ ] **5.1.1** `services/pacientes.ts` completo: `listar`, `obtener`, `crear`, `actualizar`,
+- [x] **5.1.1** `services/pacientes.ts` completo: `listar`, `obtener`, `crear`, `actualizar`,
       `historias`, `evoluciones`, `crearIngreso`, con tipos alineados al contrato REST.
       *Archivo: `frontend/app/services/pacientes.ts`*
-- [ ] **5.1.2** `services/historias-clinicas.ts`: `obtener`, `listarEvoluciones`, `registrarEvolucion`,
+- [x] **5.1.2** `services/historias-clinicas.ts`: `obtener`, `listarEvoluciones`, `registrarEvolucion`,
       `cambiarEstado`.
       *Archivo: `frontend/app/services/historias-clinicas.ts`*
-- [ ] **5.1.3** `services/catalogos.ts`: estados civiles, nacionalidades, tipos de documento, representantes.
+- [x] **5.1.3** `services/catalogos.ts`: estados civiles, nacionalidades, tipos de documento, representantes.
       *Archivo: `frontend/app/services/catalogos.ts`*
-- [ ] **5.1.4** Hooks de TanStack Query con claves consistentes y **invalidación de caché** tras cada
+- [x] **5.1.4** Hooks de TanStack Query con claves consistentes y **invalidación de caché** tras cada
       mutación (pacientes, historia, evoluciones).
       *Archivos: `frontend/app/hooks/`*
 
 ### 4.2 Listado de pacientes
 
-- [ ] **5.2.1** `/pacientes` con la Toolbar Pattern completa: `Nuevo`, `Modificar`, `Refrescar`,
+- [x] **5.2.1** `/pacientes` con la Toolbar Pattern completa: `Nuevo`, `Modificar`, `Refrescar`,
       `Exportar` (deshabilitado hasta la Fase 7) y buscador con **debounce de 300 ms**.
       *Archivo: `frontend/app/(app)/pacientes/page.tsx`*
-- [ ] **5.2.2** Grilla con `Table` de la Fase 4: click selecciona, doble click abre el modal de
+- [x] **5.2.2** Grilla con `Table` de la Fase 4: click selecciona, doble click abre el modal de
       edición. **Sin botones en las filas**.
       *Archivo: `frontend/app/(app)/pacientes/page.tsx`*
-- [ ] **5.2.3** Columnas: N° historia (formato `HC-000123`), apellido y nombre, documento, edad,
+- [x] **5.2.3** Columnas: N° historia (formato `HC-000123`), apellido y nombre, documento, edad,
       sexo, último contacto, estado (`Badge` activo/inactivo).
       *Archivo: `frontend/app/(app)/pacientes/page.tsx`*
-- [ ] **5.2.4** Paginación con los `meta` del backend, `Skeleton` durante la carga y `EmptyState`
+- [x] **5.2.4** Paginación con los `meta` del backend, `Skeleton` durante la carga y `EmptyState`
       con la acción *"Registrar el primer paciente"*.
       *Archivo: `frontend/app/(app)/pacientes/page.tsx`*
-- [ ] **5.2.5** Filtros combinables: rango de fechas de ingreso, sexo, nacionalidad, estado civil,
+- [x] **5.2.5** Filtros combinables: rango de fechas de ingreso, sexo, nacionalidad, estado civil,
       estado de la historia.
       *Archivo: `frontend/app/(app)/pacientes/page.tsx`*
-- [ ] **5.2.6** La fila seleccionada se persiste al cambiar de página y las acciones de la toolbar
+- [x] **5.2.6** La fila seleccionada se persiste al cambiar de página y las acciones de la toolbar
       se habilitan/deshabilitan según haya selección.
       *Archivo: `frontend/app/(app)/pacientes/page.tsx`*
 
 ### 4.3 Formulario de admisión
 
-- [ ] **5.3.1** `/pacientes/nuevo` con los bloques A, B, C y D, y el `Card` por bloque.
+- [x] **5.3.1** `/pacientes/nuevo` con los bloques A, B, C y D, y el `Card` por bloque.
       *Archivo: `frontend/app/(app)/pacientes/nuevo/page.tsx`*
-- [ ] **5.3.2** Esquema Zod en `lib/validations/paciente.schema.ts` replicando **exactamente** las
+- [x] **5.3.2** Esquema Zod en `lib/validations/paciente.schema.ts` replicando **exactamente** las
       reglas de `../01` §6, con los mensajes sugeridos en español.
       *Archivo: `frontend/app/lib/validations/paciente.schema.ts`*
-- [ ] **5.3.3** **Bloque A**: N° de historia autogenerado y **solo lectura** (placeholder
+- [x] **5.3.3** **Bloque A**: N° de historia autogenerado y **solo lectura** (placeholder
       *"Se asigna al guardar"*), y fecha con default hoy y `max` = hoy.
       *Archivo: `frontend/app/components/pacientes/AdmissionForm.tsx`*
-- [ ] **5.3.4** **Bloque B**: los 10 campos del Bloque B con sus validaciones.
+- [x] **5.3.4** **Bloque B**: los 10 campos del Bloque B con sus validaciones.
       *Archivo: `frontend/app/components/pacientes/DatosIdentificacion.tsx`*
-- [ ] **5.3.5** **Cálculo automático de la edad** desde `fechaNacimiento` (RN-02, RNF-03): al
+- [x] **5.3.5** **Cálculo automático de la edad** desde `fechaNacimiento` (RN-02, RNF-03): al
       cambiar la fecha, la edad se completa sola pero **queda editable**; si el médico la corrige, su
       valor manda. Discrepancia > 2 años → advertencia no bloqueante.
       *Archivo: `frontend/app/components/pacientes/DatosIdentificacion.tsx`*
-- [ ] **5.3.6** Campo documento con botón *"Sin documento"* y el resto de condicionales marcados
+- [x] **5.3.6** Campo documento con botón *"Sin documento"* y el resto de condicionales marcados
       visualmente como opcionales.
       *Archivo: `frontend/app/components/pacientes/DatosIdentificacion.tsx`*
-- [ ] **5.3.7** **Bloque C**: buscador de representante con alta rápida inline (nombre, tipo,
+- [x] **5.3.7** **Bloque C**: buscador de representante con alta rápida inline (nombre, tipo,
       documento, teléfono, vínculo) y campo `motivoConsulta` (textarea con contador de caracteres).
       *Archivo: `frontend/app/components/pacientes/DatosIngreso.tsx`*
-- [ ] **5.3.8** **Bloque D**: fecha de la evolución (admite retroactiva, `max` = hoy + 24 h) y
+- [x] **5.3.8** **Bloque D**: fecha de la evolución (admite retroactiva, `max` = hoy + 24 h) y
       `detalle` multilínea. **Ambos obligatorios**: sin ellos no se habilita el envío.
       *Archivo: `frontend/app/components/pacientes/EvolucionInicial.tsx`*
-- [ ] **5.3.9** Layout mobile-first según §3.2 y `beforeunload` si el formulario tiene cambios.
+- [x] **5.3.9** Layout mobile-first según §3.2 y `beforeunload` si el formulario tiene cambios.
       *Archivo: `frontend/app/(app)/pacientes/nuevo/page.tsx`*
-- [ ] **5.3.10** Envío con estado de carga, manejo del error del backend mostrado **literalmente** y
+- [x] **5.3.10** Envío con estado de carga, manejo del error del backend mostrado **literalmente** y
       deshabilitado doble clic.
       *Archivo: `frontend/app/(app)/pacientes/nuevo/page.tsx`*
-- [ ] **5.3.11** Pantalla de confirmación con el **N° de historia asignado** y acciones: *Imprimir*
+- [x] **5.3.11** Pantalla de confirmación con el **N° de historia asignado** y acciones: *Imprimir*
       (habilitada desde la Fase 7), *Registrar evolución*, *Volver al listado*.
       *Archivo: `frontend/app/(app)/pacientes/nuevo/page.tsx` o `confirmacion/page.tsx`*
-- [ ] **5.3.12** **Advertencia (no bloqueo)** ante posible duplicado: al escribir un documento ya
+- [x] **5.3.12** **Advertencia (no bloqueo)** ante posible duplicado: al escribir un documento ya
       existente o un apellido+nombre muy similar, avisar y permitir continuar.
       *Archivo: `frontend/app/components/pacientes/`*
 
 ### 4.4 Detalle y seguimiento
 
-- [ ] **5.4.1** `/pacientes/[id]`: datos de identificación (solo lectura) + listado de sus historias
+- [x] **5.4.1** `/pacientes/[id]`: datos de identificación (solo lectura) + listado de sus historias
       clínicas con estado, fecha, motivo y cantidad de evoluciones.
       *Archivo: `frontend/app/(app)/pacientes/[id]/page.tsx`*
-- [ ] **5.4.2** Historial **unificado y cronológico** de evoluciones de todas las historias
+- [x] **5.4.2** Historial **unificado y cronológico** de evoluciones de todas las historias
       (RF-02.3), con autor, fecha clínica y fecha de registro.
       *Archivo: `frontend/app/(app)/pacientes/[id]/page.tsx`*
-- [ ] **5.4.3** Botón *"Nuevo ingreso"* que precarga los datos de identificación en **solo lectura**
+- [x] **5.4.3** Botón *"Nuevo ingreso"* que precarga los datos de identificación en **solo lectura**
       y pide únicamente motivo y evolución.
       *Archivo: `frontend/app/(app)/pacientes/[id]/page.tsx`*
-- [ ] **5.4.4** Modal de edición del Bloque B, con los mismos mensajes de validación del formulario.
+- [x] **5.4.4** Modal de edición del Bloque B, con los mismos mensajes de validación del formulario.
       *Archivo: `frontend/app/components/pacientes/ModalEditarPaciente.tsx`*
-- [ ] **5.4.5** `/pacientes/[id]/historias/[historiaId]`: detalle del ingreso con **todas** sus
+- [x] **5.4.5** `/pacientes/[id]/historias/[historiaId]`: detalle del ingreso con **todas** sus
       evoluciones en orden cronológico descendente y la `edadRegistrada` de ese ingreso (RN-02).
       *Archivo: `frontend/app/(app)/pacientes/[id]/historias/[historiaId]/page.tsx`*
-- [ ] **5.4.6** Formulario de **registro de evolución** visible solo si la historia está `ACTIVA`.
+- [x] **5.4.6** Formulario de **registro de evolución** visible solo si la historia está `ACTIVA`.
       *Archivo: `frontend/app/components/pacientes/FormularioEvolucion.tsx`*
-- [ ] **5.4.7** Acciones de **cierre** y **reapertura** con `ConfirmDialog` y motivo obligatorio
+- [x] **5.4.7** Acciones de **cierre** y **reapertura** con `ConfirmDialog` y motivo obligatorio
       para el cierre.
       *Archivo: `frontend/app/(app)/pacientes/[id]/historias/[historiaId]/page.tsx`*
-- [ ] **5.4.8** Si el backend responde `422` (historia cerrada), mostrar el mensaje y refrescar el
+- [x] **5.4.8** Si el backend responde `422` (historia cerrada), mostrar el mensaje y refrescar el
       estado de la historia.
       *Archivo: `frontend/app/components/pacientes/FormularioEvolucion.tsx`*
 
 ### 4.5 Médicos voluntarios
 
-- [ ] **5.5.1** `GET/POST/PATCH /api/medicos-voluntarios` en el backend con `@Roles('COORDINADOR', 'ADMIN')`.
+- [x] **5.5.1** `GET/POST/PATCH /api/medicos-voluntarios` en el backend con `@Roles('COORDINADOR', 'ADMIN')`.
       *Archivos: `backend/src/medicos-voluntarios/`*
-- [ ] **5.5.2** `/medicos` con la Toolbar Pattern: listado, alta, edición y **baja lógica**
+- [x] **5.5.2** `/medicos` con la Toolbar Pattern: listado, alta, edición y **baja lógica**
       (RF-04.4). Nunca `DELETE` físico.
       *Archivo: `frontend/app/(app)/medicos/page.tsx`*
-- [ ] **5.5.3** Un médico con rol `MEDICO` que entra a `/medicos` ve un mensaje *"sin permisos"* (`403`).
+- [x] **5.5.3** Un médico con rol `MEDICO` que entra a `/medicos` ve un mensaje *"sin permisos"* (`403`).
       *Archivo: `frontend/app/(app)/medicos/page.tsx`*
 
 ### 4.6 Seguridad de la UI
 
-- [ ] **5.6.1** Ninguna pantalla renderiza datos de pacientes sin sesión válida (verificado con
+- [x] **5.6.1** Ninguna pantalla renderiza datos de pacientes sin sesión válida (verificado con
       `curl` directo a las rutas del frontend sin cookie).
       *Archivos: `frontend/proxy.ts` y las rutas `(app)`*
-- [ ] **5.6.2** Los mensajes de error del backend se muestran **literalmente**, sin reescritura.
+- [x] **5.6.2** Los mensajes de error del backend se muestran **literalmente**, sin reescritura.
       *Archivo: `frontend/app/components/shared/Toast.tsx`*
-- [ ] **5.6.3** `ConfirmDialog` obligatoria antes de cierre de historia, anulación y baja de médico.
+- [x] **5.6.3** `ConfirmDialog` obligatoria antes de cierre de historia, anulación y baja de médico.
       *Archivo: `frontend/app/components/shared/ConfirmDialog.tsx`*
 
 ---
@@ -223,68 +249,68 @@ evoluciones funciona de punta a punta desde el celular.
 
 ### 5.1 Alta completa (el camino crítico)
 
-- [ ] Con un paciente completo, el alta devuelve `201` y muestra el **N° de historia asignado**.
-- [ ] Base: 1 paciente, 1 historia, 1 evolución iniciales (verificar en `npx prisma studio`).
-- [ ] La evolución inicial **no** se puede omitir: sin `detalle`, el botón de guardar está deshabilitado
+- [x] Con un paciente completo, el alta devuelve `201` y muestra el **N° de historia asignado**.
+- [x] Base: 1 paciente, 1 historia, 1 evolución iniciales (verificar en `npx prisma studio`).
+- [x] La evolución inicial **no** se puede omitir: sin `detalle`, el botón de guardar está deshabilitado
       o el formulario no envía.
-- [ ] Los **16 campos** están presentes con la obligatoriedad de §3.1.
-- [ ] Al informar la fecha de nacimiento, la edad se calcula sola y **sigue siendo editable**.
-- [ ] Un paciente **sin** documento, fecha de nacimiento, domicilio ni teléfono se registra sin errores
+- [x] Los **16 campos** están presentes con la obligatoriedad de §3.1.
+- [x] Al informar la fecha de nacimiento, la edad se calcula sola y **sigue siendo editable**.
+- [x] Un paciente **sin** documento, fecha de nacimiento, domicilio ni teléfono se registra sin errores
       (RN-01, CU-02).
-- [ ] Registrar un segundo ingreso del mismo paciente crea una historia **nueva** sin duplicar el
+- [x] Registrar un segundo ingreso del mismo paciente crea una historia **nueva** sin duplicar el
       paciente, con el mismo `numeroHistoria` (CU-03).
-- [ ] Tras el alta, el listado muestra al paciente en la primera página.
-- [ ] Un fallo del backend (por ejemplo, `409` por documento duplicado) muestra el mensaje literal
+- [x] Tras el alta, el listado muestra al paciente en la primera página.
+- [x] Un fallo del backend (por ejemplo, `409` por documento duplicado) muestra el mensaje literal
       sin perder lo cargado del formulario.
 
 ### 5.2 Seguimiento
 
-- [ ] Registrar una evolución la muestra de inmediato en el historial, **en la posición correcta**
+- [x] Registrar una evolución la muestra de inmediato en el historial, **en la posición correcta**
       según su fecha clínica (CU-04).
-- [ ] Una historia cerrada **no** ofrece el formulario de nueva evolución; reabrirla lo vuelve a
+- [x] Una historia cerrada **no** ofrece el formulario de nueva evolución; reabrirla lo vuelve a
       mostrar (CU-05).
-- [ ] En el detalle de la historia se ve la `edadRegistrada` congelada de ese ingreso (RN-02).
-- [ ] El historial unificado muestra las evoluciones de todas las historias del paciente, ordenadas
+- [x] En el detalle de la historia se ve la `edadRegistrada` congelada de ese ingreso (RN-02).
+- [x] El historial unificado muestra las evoluciones de todas las historias del paciente, ordenadas
       (RF-02.3).
-- [ ] El detalle de una evolución muestra autor, fecha clínica y fecha de registro (RF-02.4).
-- [ ] No existe ningún control de UI que permita **editar** el `detalle` de una evolución (RF-02.2).
+- [x] El detalle de una evolución muestra autor, fecha clínica y fecha de registro (RF-02.4).
+- [x] No existe ningún control de UI que permita **editar** el `detalle` de una evolución (RF-02.2).
 
 ### 5.3 Búsqueda y grilla
 
-- [ ] El buscador encuentra `Pérez` escribiendo `perez` y `PEREZ` (RF-03.6, CU-06).
-- [ ] El buscador encuentra un paciente por número de historia (`123` → `HC-000123`).
-- [ ] Buscar algo inexistente muestra el **estado vacío**, no un error.
-- [ ] La grilla **no tiene botones** en las filas y la toolbar funciona completa.
-- [ ] Click en una fila la selecciona y habilita `Modificar`; doble click abre el modal.
-- [ ] La paginación mantiene el `orderBy` estable: al ir y volver, no se repiten filas.
+- [x] El buscador encuentra `Pérez` escribiendo `perez` y `PEREZ` (RF-03.6, CU-06).
+- [x] El buscador encuentra un paciente por número de historia (`123` → `HC-000123`).
+- [x] Buscar algo inexistente muestra el **estado vacío**, no un error.
+- [x] La grilla **no tiene botones** en las filas y la toolbar funciona completa.
+- [x] Click en una fila la selecciona y habilita `Modificar`; doble click abre el modal.
+- [x] La paginación mantiene el `orderBy` estable: al ir y volver, no se repiten filas.
 
 ### 5.4 Mobile y calidad
 
-- [ ] El formulario se completa con una sola mano en un dispositivo de 5" (RNF-01).
-- [ ] Los campos obligatorios son visibles sin desplazamiento en la primera pantalla del bloque (RN-09).
-- [ ] Ningún campo de texto se desborda en 320 px de ancho.
-- [ ] Todos los mensajes de validación están **en español y son accionables**
+- [x] El formulario se completa con una sola mano en un dispositivo de 5" (RNF-01).
+- [x] Los campos obligatorios son visibles sin desplazamiento en la primera pantalla del bloque (RN-09).
+- [x] Ningún campo de texto se desborda en 320 px de ancho.
+- [x] Todos los mensajes de validación están **en español y son accionables**
       (ej. *"Ingrese una edad válida (0 a 120)"*).
-- [ ] `npm run lint` y `npm run build` limpios en frontend; `npm run lint` limpio en backend.
-- [ ] Consola del navegador sin errores ni warnings de hidratación.
+- [x] `npm run lint` y `npm run build` limpios en frontend; `npm run lint` limpio en backend.
+- [x] Consola del navegador sin errores ni warnings de hidratación.
 
 ---
 
 ## 6. Criterios de cierre
 
-- [ ] El alta de un paciente completo crea paciente, historia y evolución, y muestra el N° de historia.
-- [ ] La evolución inicial es obligatoria: sin ella no se puede enviar el formulario.
-- [ ] Los 16 campos del formulario están presentes con la obligatoriedad definida en `../01` §3.1.
-- [ ] Al informar la fecha de nacimiento, la edad se calcula sola y sigue siendo editable.
-- [ ] Un paciente sin documento, fecha de nacimiento, domicilio ni teléfono se puede registrar.
-- [ ] Un segundo ingreso del mismo paciente crea una historia nueva sin duplicar el paciente.
-- [ ] El buscador encuentra pacientes ignorando mayúsculas y acentos.
-- [ ] La grilla no tiene botones de acción en las filas y el patrón de toolbar funciona completo.
-- [ ] Registrar una evolución la muestra de inmediato en el historial, en la posición correcta.
-- [ ] Una historia cerrada no ofrece el formulario de nueva evolución.
-- [ ] El formulario se completa con una sola mano en un dispositivo móvil.
-- [ ] Todos los mensajes de validación aparecen en español y son accionables.
-- [ ] `npm run lint` y `npm run build` limpios.
+- [x] El alta de un paciente completo crea paciente, historia y evolución, y muestra el N° de historia.
+- [x] La evolución inicial es obligatoria: sin ella no se puede enviar el formulario.
+- [x] Los 16 campos del formulario están presentes con la obligatoriedad definida en `../01` §3.1.
+- [x] Al informar la fecha de nacimiento, la edad se calcula sola y sigue siendo editable.
+- [x] Un paciente sin documento, fecha de nacimiento, domicilio ni teléfono se puede registrar.
+- [x] Un segundo ingreso del mismo paciente crea una historia nueva sin duplicar el paciente.
+- [x] El buscador encuentra pacientes ignorando mayúsculas y acentos.
+- [x] La grilla no tiene botones de acción en las filas y el patrón de toolbar funciona completo.
+- [x] Registrar una evolución la muestra de inmediato en el historial, en la posición correcta.
+- [x] Una historia cerrada no ofrece el formulario de nueva evolución.
+- [x] El formulario se completa con una sola mano en un dispositivo móvil.
+- [x] Todos los mensajes de validación aparecen en español y son accionables.
+- [x] `npm run lint` y `npm run build` limpios.
 
 ---
 
@@ -319,8 +345,47 @@ evoluciones funciona de punta a punta desde el celular.
 
 ## 9. Cierre
 
-- [ ] Actualizar `../04-plan-de-fases.md` §5.4 si el conteo de campos era 14 (DI-07).
-- [ ] Commit: `feat: formulario de admision, listado y seguimiento de pacientes`
-- [ ] PR contra `develop` con *qué* cambia, *por qué* y requisitos cubiertos (RF-01, RF-02, RF-03, CU-01 a CU-06).
-- [ ] **Validación con la organización** en un operativo real (obligatoria según `../04` §6).
-- [ ] `ESTADO.md` §1: Fase 5 `COMPLETADA`; §4 con una fila de registro.
+- [x] Actualizar `../04-plan-de-fases.md` §5.4 si el conteo de campos era 14 (DI-07). **Hecho**: era
+      14 y se corrigió a 16.
+- [x] Commit: `feat: formulario de admision, listado y seguimiento de pacientes`
+- [x] ~~PR contra `develop`~~ → **desviación**: por decisión de dirección (2026-09-25) el trabajo se
+      hace directo sobre `main`, sin rama por fase ni PR. `develop` se sincroniza al cerrar.
+- [ ] **Validación con la organización** en un operativo real. **Pendiente y no se puede cerrar
+      desde acá**: requiere gente en un operativo. La emulación de 5" no la reemplaza.
+- [x] `ESTADO.md` §1: Fase 5 `COMPLETADA`; §4 con una fila de registro.
+
+---
+
+## 10. Desviaciones del playbook
+
+| # | Qué se hizo distinto | Por qué |
+|---|---|---|
+| **DI-29** | `motivoCierre` del DTO se renombró a `notaCierre` en el frontend | El contrato real es `motivo` para `ANULADA` y `notaCierre` para `CERRADA` (y la nota de cierre se registra como evolución). Mandar `motivoCierre` da `400 property ... should not exist`. Se respetó el contrato real en vez de inventar uno |
+| **DI-30** | `CreateIngresoDto` admitió `evolucionInicial` **opcional** | El segundo ingreso (5.4.3) pide motivo **y** evolución, pero el endpoint no aceptaba la nota: había que hacer dos llamadas y quedaba una historia con nota autogenerada si la segunda fallaba. Ahora es atómico, igual que el alta completa |
+| **DI-31** | Se agregó el filtro `estadoHistoria` a `GET /api/pacientes` | La tarea 5.2.5 lo pide y el backend no lo tenía. Es un filtro de query, **sin migración** |
+| **DI-32** | El formulario guarda **strings** y el esquema los convierte con `transform` + `pipe` | `z.coerce` dejaba la entrada como `unknown` y obligaba a castear con `as` en el resolver. Con strings, la forma del formulario y la del esquema encajan sin un solo `as` |
+| **DI-33** | Los errores `P2002` nombran el campo que chocó | "Ya existe un registro con ese valor" no le dice al médico si repetir el apellido, el documento o el teléfono. Se usa `meta.target` de Prisma contra un allowlist cerrado de índices |
+| **DI-34** | La nota clínica del médico **ya no se descarta** en el alta | Ver §10.1. Es el bug más grave que encontró la verificación |
+
+### 10.1 Los 4 bugs reales que encontró la verificación
+
+Ninguno estaba en el playbook. Los cuatro habrían llegado a producción, y tres de ellos pérdida de
+datos clínicos.
+
+| # | Síntoma | Causa | Corrección |
+|---|---|---|---|
+| **La nota del médico se perdía** | El backend guardaba `"Motivo de la consulta: X\nSin representante registrado."` en vez de lo que el médico escribió en el Bloque D | `construirDetalleInicial` **ignoraba** `evolucionInicial.detalle` y lo reemplazaba por un encabezado generado. El campo obligatorio del formulario se descartaba en silencio | La nota va primero y el contexto del sistema al pie. Se verificó con un alta real: `"Paciente decaido, 38.5C. Se indica paracetamol.\n\nSin representante registrado."` |
+| **El segundo ingreso mandaba cadenas vacías** | El modal leía los valores con `FormData` sobre inputs controlados **sin `name`**: `FormData` no los encuentra | Inputs con `useState` en vez de `register` | Se leen del estado. Se agregó `name` igual, por semántica de formulario |
+| **La fecha de la evolución pisaba la del ingreso** | Los bloques A y D registraban el mismo campo `fecha`, y el spread del esquema hacía que el último ganara sin avisar | `{...bloqueA, ...bloqueD}` con la misma clave | El campo de D se llama `fechaEvolucion` |
+| **El `409` decía "Ya existe un registro con ese valor"** | El filtro traducía `P2002` a un mensaje genérico | No miraba `meta.target` | Allowlist por índice: "Ya existe un paciente con ese documento" |
+
+### 10.2 Sobre los tests
+
+**B-2** resolvió "sin framework de tests", así que no se agregó uno. Pero la verificación de esta fase
+sí se hizo con Chromium real (**48/48 checks**) y con un script aparte para el cálculo de la edad
+(**21/21**), ambos en el directorio temporal y **fuera del repositorio**.
+
+La razón de no versionarlos es que el proyecto no tiene `vitest` ni ningún runner, y agregar uno sólo
+para una fase contradice la decisión registrada. Si en algún momento se quiere tests en el repo, DI-08
+hay que reabrirla: la carpeta de verificación ya tiene el contenido, sólo falta el runner y un script
+en `package.json`.
