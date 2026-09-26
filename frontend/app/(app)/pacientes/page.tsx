@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Download, Filter, Plus, RefreshCw, SquarePen } from 'lucide-react';
+import { BookOpen, Download, Filter, Plus, RefreshCw, SquarePen } from 'lucide-react';
 
 import { Tabla, type ColumnaTabla } from '@/app/components/ui/Table';
 import { Button } from '@/app/components/ui/Button';
@@ -26,6 +26,16 @@ import type {
  *
  * **Las acciones viven todas en la toolbar; las filas no tienen un solo botón.** Un
  * click selecciona la fila y doble click abre la edición, que es lo que hace `Table`.
+ *
+ * Abrir la historia clínica es una acción más de la toolbar, y no el click simple, por
+ * dos razones concretas:
+ *
+ * - El doble click ya está ocupado por la edición (`Table` dispara `onFilaDobleClick`
+ *   después de dos `click`, así que un click que navega se iría de la pantalla antes
+ *   de que el segundo llegara).
+ * - En un teléfono el doble click no existe. Con la acción en la toolbar, el camino
+ *   para abrir una historia es idéntico en escritorio y en el celular: tocar la fila
+ *   y tocar **Ver historia**.
  *
  * La búsqueda ignora mayúsculas y acentos porque el backend lo resuelve con el
  * collation `utf8mb4_0900_ai_ci`: escribir `perez` encuentra `Pérez` sin que la
@@ -169,7 +179,8 @@ export default function PaginaPacientes() {
       <div>
         <h1 className="text-xl font-semibold">Pacientes</h1>
         <p className="text-muted-foreground text-sm">
-          Un click en la fila la selecciona, doble click abre la edición.
+          Este listado es sólo de pacientes. Tocá uno y usá <strong>Ver historias</strong> para
+          ver sus ingresos. Con mouse, doble click abre la edición.
         </p>
       </div>
 
@@ -179,6 +190,23 @@ export default function PaginaPacientes() {
           <Button onClick={() => router.push('/pacientes/nuevo')}>
             <Plus className="size-4" aria-hidden />
             Nuevo
+          </Button>
+          <Button
+            variante="secondary"
+            disabled={seleccionado === null}
+            title={
+              seleccionado === null
+                ? 'Elegí un paciente de la lista para ver sus historias clínicas'
+                : 'Ver las historias clínicas del paciente'
+            }
+            onClick={() => {
+              if (seleccionado !== null) {
+                router.push(`/pacientes/${seleccionado}`);
+              }
+            }}
+          >
+            <BookOpen className="size-4" aria-hidden />
+            Ver historias
           </Button>
           <Button
             variante="secondary"

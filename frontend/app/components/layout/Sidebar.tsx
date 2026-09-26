@@ -91,14 +91,30 @@ export function Sidebar({ abierta, onCerrar }: PropsSidebar) {
                     onClick={onCerrar}
                     aria-current={activa ? 'page' : undefined}
                     className={cn(
-                      'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
+                      'flex items-start gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
                       activa
                         ? 'bg-accent text-accent-foreground font-medium'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                     )}
                   >
-                    <Icono aria-hidden className="size-5 shrink-0" />
-                    <span className="min-w-0 truncate">{seccion.titulo}</span>
+                    {/* El ícono se alinea con la primera línea del título, no con
+                        el centro del bloque de dos líneas. */}
+                    <Icono aria-hidden className="mt-0.5 size-5 shrink-0" />
+                    {/* La descripción va siempre visible, no como `title`: es lo que
+                        dice que bajo "Pacientes" está la historia clínica, y con
+                        `title` sólo aparecería al pasar el mouse por encima, que es
+                        justo cuando el usuario no lo está mirando. */}
+                    <span className="min-w-0">
+                      <span className="block truncate">{seccion.titulo}</span>
+                      <span
+                        className={cn(
+                          'block truncate text-xs',
+                          activa ? 'text-accent-foreground/70' : 'text-muted-foreground/70',
+                        )}
+                      >
+                        {seccion.descripcion}
+                      </span>
+                    </span>
                   </Link>
                 </li>
               );

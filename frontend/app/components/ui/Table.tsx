@@ -31,6 +31,11 @@ interface PropsTabla<T> {
  * acá sólo se selecciona y se abre.
  *
  * Un click selecciona, doble click abre la edición.
+ *
+ * Cuando hay `alSeleccionar`, la fila es **operable con teclado** (`Enter` o
+ * `Espacio`). No es un extra: las acciones de la toolbar dependen de que haya una
+ * fila seleccionada, así que sin esto un usuario de teclado no podría llegar
+ * nunca a ellas, y la pantalla quedaría utilizable sólo con mouse.
  */
 export function Tabla<T>({
   columnas,
@@ -46,6 +51,8 @@ export function Tabla<T>({
   if (filas.length === 0) {
     return <>{vacio ?? null}</>;
   }
+
+  const seleccionable = alSeleccionar !== undefined;
 
   return (
     <div className={cn('w-full overflow-x-auto', className)}>
@@ -80,8 +87,20 @@ export function Tabla<T>({
                   onFilaClick?.(fila);
                 }}
                 onDoubleClick={() => onFilaDobleClick?.(fila)}
+                onKeyDown={(evento) => {
+                  // Sólo Enter y Espacio: con cualquier otra tecla se deja pasar,
+                  // así el tabulador y los atajos de la pantalla siguen funcionando.
+                  if (seleccionable && (evento.key === 'Enter' || evento.key === ' ')) {
+                    evento.preventDefault();
+                    alSeleccionar?.(fila);
+                  }
+                }}
+                tabIndex={seleccionable ? 0 : undefined}
+                aria-selected={seleccionable ? seleccionada : undefined}
                 className={cn(
-                  'cursor-pointer border-b last:border-0',
+                  'border-b last:border-0',
+                  seleccionable && 'cursor-pointer',
+                  seleccionable && 'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                   seleccionada ? 'bg-accent' : 'hover:bg-muted',
                 )}
               >

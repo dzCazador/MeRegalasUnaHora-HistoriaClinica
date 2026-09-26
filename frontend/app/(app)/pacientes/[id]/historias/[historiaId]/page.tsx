@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, Lock, LockOpen, Printer, XCircle } from 'lucide-react';
+import { Lock, LockOpen, Printer, XCircle } from 'lucide-react';
 
 import { Card, CardContent, CardHeader } from '@/app/components/ui/Card';
 import { Button } from '@/app/components/ui/Button';
@@ -11,11 +10,13 @@ import { Badge } from '@/app/components/ui/Badge';
 import { Skeleton } from '@/app/components/ui/Skeleton';
 import { EstadoVacio } from '@/app/components/shared/EmptyState';
 import { ConfirmDialog } from '@/app/components/shared/ConfirmDialog';
+import { Migas } from '@/app/components/shared/Migas';
 import { FormularioEvolucion } from '@/app/components/pacientes/FormularioEvolucion';
 import {
   useCambiarEstadoHistoria,
   useEvolucionesHistoria,
   useHistoria,
+  usePaciente,
 } from '@/app/hooks/consultas';
 import type { EstadoHistoria } from '@/types/dominio';
 
@@ -56,6 +57,10 @@ export default function PaginaHistoria() {
 
   const { data: historia, isLoading, isError, error } = useHistoria(historiaId);
   const { data: evoluciones } = useEvolucionesHistoria(historiaId, historia !== undefined);
+  // La historia trae sólo `pacienteId`, no el nombre. Hace falta para la miga de
+  // pan, y si se llegó desde la pantalla del paciente ya está en caché: no suma
+  // una segunda ida a la base en el recorrido normal.
+  const { data: paciente } = usePaciente(pacienteId);
   const cambiarEstado = useCambiarEstadoHistoria(historiaId, pacienteId);
 
   const [confirmacion, setConfirmacion] = useState<Confirmacion>(null);
@@ -106,14 +111,17 @@ export default function PaginaHistoria() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link
-            href={`/pacientes/${pacienteId}`}
-            className="text-muted-foreground inline-flex items-center gap-1 text-sm hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" aria-hidden />
-            Paciente
-          </Link>
+        <div className="min-w-0">
+          {/* Los tres niveles visibles: listado → historias del paciente → esta
+              historia. Con un solo "Paciente" como link no se podía volver al
+              intermedio. */}
+          <Migas
+            migas={[
+              { etiqueta: 'Pacientes', href: '/pacientes' },
+              { etiqueta: `${paciente?.apellido ?? ''}, ${paciente?.nombre ?? ''}`.trim().replace(/^, /, ''), href: `/pacientes/${pacienteId}` },
+              { etiqueta: 'Historia clínica' },
+            ]}
+          />
           <h1 className="mt-1 flex flex-wrap items-center gap-2 text-xl font-semibold">
             Historia clínica
             <Badge variante={historia.estado}>{historia.estado}</Badge>

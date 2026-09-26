@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 
 import { Card, CardContent, CardHeader } from '@/app/components/ui/Card';
 import { Button } from '@/app/components/ui/Button';
@@ -13,6 +13,7 @@ import { Modal } from '@/app/components/ui/Modal';
 import { Input } from '@/app/components/ui/Input';
 import { TextArea } from '@/app/components/ui/Select';
 import { EstadoVacio } from '@/app/components/shared/EmptyState';
+import { Migas } from '@/app/components/shared/Migas';
 import { ModalEditarPaciente } from '@/app/components/pacientes/ModalEditarPaciente';
 import {
   useEvolucionesPaciente,
@@ -111,19 +112,20 @@ export default function PaginaPaciente() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link
-            href="/pacientes"
-            className="text-muted-foreground inline-flex items-center gap-1 text-sm hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" aria-hidden />
-            Pacientes
-          </Link>
-          <h1 className="mt-1 text-xl font-semibold">
-            {paciente.apellido}, {paciente.nombre}
-          </h1>
+        <div className="min-w-0">
+          <Migas
+            migas={[
+              { etiqueta: 'Pacientes', href: '/pacientes' },
+              { etiqueta: `${paciente.apellido}, ${paciente.nombre}` },
+            ]}
+          />
+          <h1 className="mt-1 text-xl font-semibold">Historias clínicas</h1>
           <p className="text-muted-foreground text-sm">
-            HC-{String(paciente.numeroHistoria).padStart(6, '0')} ·{' '}
+            {paciente.apellido}, {paciente.nombre} · HC-
+            {String(paciente.numeroHistoria).padStart(6, '0')}
+            {paciente.documento !== null && ` · Doc. ${paciente.documento}`}
+          </p>
+          <p className="text-muted-foreground text-sm">
             {historias?.length ?? 0} {historias?.length === 1 ? 'ingreso' : 'ingresos'} ·{' '}
             {totalEvoluciones} {totalEvoluciones === 1 ? 'evolución' : 'evoluciones'}
           </p>
@@ -140,34 +142,9 @@ export default function PaginaPaciente() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader title="Datos de identificación" description="Bloque B de la historia." />
-        <CardContent>
-          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            <Dato etiqueta="Apellido" valor={paciente.apellido} />
-            <Dato etiqueta="Nombre" valor={paciente.nombre} />
-            <Dato etiqueta="Documento" valor={paciente.documento ?? 'sin datos'} />
-            <Dato etiqueta="Tipo de documento" valor={paciente.tipoDocumento?.nombre ?? '—'} />
-            <Dato etiqueta="Edad actual" valor={`${paciente.edad} años`} />
-            <Dato etiqueta="Sexo" valor={paciente.sexo === 'SIN_DATOS' ? 'sin datos' : paciente.sexo} />
-            <Dato etiqueta="Estado civil" valor={paciente.estadoCivil?.nombre ?? 'sin datos'} />
-            <Dato etiqueta="Nacionalidad" valor={paciente.nacionalidad?.nombre ?? 'sin datos'} />
-            <Dato etiqueta="Fecha de nacimiento" valor={fecha(paciente.fechaNacimiento)} />
-            <Dato etiqueta="Domicilio" valor={paciente.domicilio ?? 'sin datos'} />
-            <Dato etiqueta="Teléfono" valor={paciente.telefono ?? 'sin datos'} />
-            <Dato
-              etiqueta="Estado"
-              valor={paciente.activo ? 'Activo' : 'Inactivo (baja lógica)'}
-            />
-          </dl>
-          {paciente.sinDomicilioFijo ? (
-            <p className="text-muted-foreground mt-3 text-xs">
-              Sin domicilio fijo: duerme en la calle.
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
-
+      {/* Las historias van PRIMERO. Esta pantalla se abre para ver los ingresos de un
+          paciente, y antes arrancaba con los datos de identificación: el bloque más
+          largo era el que menos se venía a mirar. */}
       <Card>
         <CardHeader
           title="Historias clínicas"
@@ -226,6 +203,41 @@ export default function PaginaPaciente() {
           )}
         </CardContent>
       </Card>
+
+      {/* Al final y con menos peso visual. Es el Bloque B, que se consulta de vez en
+          cuando, pero no es lo que se vino a mirar al abrir esta pantalla. */}
+      <details className="rounded-lg border">
+        <summary className="cursor-pointer px-4 py-3 text-base font-semibold focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+          Datos de identificación
+          <span className="text-muted-foreground ml-2 text-sm font-normal">
+            Bloque B de la historia
+          </span>
+        </summary>
+        <div className="border-t px-4 py-4">
+          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <Dato etiqueta="Apellido" valor={paciente.apellido} />
+            <Dato etiqueta="Nombre" valor={paciente.nombre} />
+            <Dato etiqueta="Documento" valor={paciente.documento ?? 'sin datos'} />
+            <Dato etiqueta="Tipo de documento" valor={paciente.tipoDocumento?.nombre ?? '—'} />
+            <Dato etiqueta="Edad actual" valor={`${paciente.edad} años`} />
+            <Dato etiqueta="Sexo" valor={paciente.sexo === 'SIN_DATOS' ? 'sin datos' : paciente.sexo} />
+            <Dato etiqueta="Estado civil" valor={paciente.estadoCivil?.nombre ?? 'sin datos'} />
+            <Dato etiqueta="Nacionalidad" valor={paciente.nacionalidad?.nombre ?? 'sin datos'} />
+            <Dato etiqueta="Fecha de nacimiento" valor={fecha(paciente.fechaNacimiento)} />
+            <Dato etiqueta="Domicilio" valor={paciente.domicilio ?? 'sin datos'} />
+            <Dato etiqueta="Teléfono" valor={paciente.telefono ?? 'sin datos'} />
+            <Dato
+              etiqueta="Estado"
+              valor={paciente.activo ? 'Activo' : 'Inactivo (baja lógica)'}
+            />
+          </dl>
+          {paciente.sinDomicilioFijo ? (
+            <p className="text-muted-foreground mt-3 text-xs">
+              Sin domicilio fijo: duerme en la calle.
+            </p>
+          ) : null}
+        </div>
+      </details>
 
       <ModalEditarPaciente
         paciente={paciente}
