@@ -10,6 +10,7 @@ import { HistoriasClinicasModule } from './historias-clinicas/historias-clinicas
 import { RepresentantesModule } from './representantes/representantes.module.js';
 import { CatalogosModule } from './catalogos/catalogos.module.js';
 import { MedicosVoluntariosModule } from './medicos-voluntarios/medicos-voluntarios.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { MedicosVoluntariosModule } from './medicos-voluntarios/medicos-voluntar
     RepresentantesModule,
     CatalogosModule,
     MedicosVoluntariosModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

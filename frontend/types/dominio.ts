@@ -235,3 +235,87 @@ export interface ParamsListadoMedicos {
   activo?: boolean;
   rol?: Rol;
 }
+
+/* ------------------------------------------------------------------ */
+/* Panel de seguimiento (Fase 6 · RF-05, RN-12, RNF-04/05)             */
+/* ------------------------------------------------------------------ */
+
+/** Un mes del gráfico. El backend ya lo devuelve como `YYYY-MM`. */
+export interface PuntoSerieMensual {
+  mes: string;
+  ingresos: number;
+  evoluciones: number;
+}
+
+/**
+ * Indicadores del período.
+ *
+ * `umbralSinContacto` viene **del backend**, no de una constante del frontend:
+ * RN-12 lo define `DASHBOARD_SIN_CONTACTO_DIAS` y puede cambiar por ambiente, así
+ * que si el panel lo tuviera hardcodeado mostraría un criterio distinto del que
+ * la base está aplicando.
+ */
+export interface ResumenDashboard {
+  pacientesActivos: number;
+  ingresos: number;
+  evoluciones: number;
+  series: PuntoSerieMensual[];
+  umbralSinContacto: number;
+}
+
+/**
+ * Fila de `GET /api/dashboard/recientes`.
+ *
+ * El aplanado no es un descuido: los nombres van **sueltos** (`apellido`,
+ * `nombre`) porque ya están Qualified por el `paciente` que travelled en el
+ * `SELECT`, y el médico autor viene como `medicoId` + `medicoNombre` en vez de un
+ * objeto anidado. Es lo que declara `IngresoRecienteDto` en Swagger.
+ */
+export interface IngresoReciente {
+  historiaClinicaId: number;
+  fecha: string;
+  motivoConsulta: string;
+  estado: EstadoHistoria;
+  pacienteId: number;
+  numeroHistoria: number | null;
+  apellido: string;
+  nombre: string;
+  documento: string | null;
+  medicoId: number;
+  medicoNombre: string;
+  operativoNombre: string | null;
+}
+
+/**
+ * Fila de `GET /api/dashboard/sin-contacto`.
+ *
+ * `diasSinContacto: null` significa que el paciente **nunca** tuvo evolución, no
+ * que el cálculo falló. La UI lo muestra como "sin contacto registrado" y jamás
+ * como `0` ni como `NaN`.
+ */
+export interface PacienteSinContacto {
+  pacienteId: number;
+  numeroHistoria: number | null;
+  apellido: string;
+  nombre: string;
+  documento: string | null;
+  edad: number | null;
+  ultimaEvolucion: string | null;
+  diasSinContacto: number | null;
+  ingresos: number;
+}
+
+/** Rango y filtros que comparten los tres widgets del panel. */
+export interface ParamsDashboard {
+  desde: string;
+  hasta: string;
+  operativoId?: number;
+  nacionalidadId?: number;
+  sexo?: Sexo;
+}
+
+/** Los mismos, más la paginación, para los dos listados. */
+export interface ParamsListadoDashboard extends ParamsDashboard {
+  page?: number;
+  limit?: number;
+}

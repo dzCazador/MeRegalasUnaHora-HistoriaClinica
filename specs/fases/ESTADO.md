@@ -20,7 +20,7 @@
 **Fase actual:** ninguna. La siguiente es la **Fase 4** (frontend base), que desbloquea la 5 y la 6.
 **Progreso total del MVP:** 5 / 7 fases.
 
-> Las Fases 3, 4 y 5 ya no dependen de la 1: pueden arrancar en cuanto seifique la 2.
+> La Fase 7 es la última del MVP y ya tiene sus dependencias resueltas (5 y 6 `COMPLETADAS`).
 >
 > **Rama de trabajo: `main`.** Por decisión de la dirección del proyecto (2026-09-25) la ejecución de
 > fases se hace directo sobre `main`, sin rama por fase ni PR. `develop` se mantiene sincronizado con
@@ -53,7 +53,7 @@ Reglas para el agente: si algo de esta tabla afecta a la fase que va a ejecutar,
 | B-4 | DI-02 — Generación de `numero_historia` | Técnica | Fase 2 | Dirección técnica | `RESUELTA` |
 | B-5 | DI-05 — Código HTTP para evolución en historia cerrada (422 vs 409) | Técnica | Fase 3 | Dirección técnica | `RESUELTA` (422) |
 | B-6 | DI-07 — Cantidad de campos del formulario (16 vs 14) | Documental | Fase 5 | Dirección técnica | `RESUELTA` (16; se corrigió `04` §5.4) |
-| B-7 | Puestos de atención concretos para `operativos` | Requisito | Fase 6 | Organización | `ABIERTA` |
+| B-7 | Puestos de atención concretos para `operativos` | Requisito | Fase 7 | Organización | `ABIERTA` — la Fase 6 la sortea con el fallback de `fase-06` §2 (filtro oculto) |
 | B-8 | Variables del admin: unificar nomenclatura y login por email | Requisito | Fase 2 | Dirección técnica | `RESUELTA` |
 | B-9 | Puertos 4000 y 3000 ocupados por el proyecto hermano `RHPro-NextGeneration` | Entorno | Fase 4 | Dirección del proyecto | `RESUELTA` (4001/3001) |
 | B-10 | `DATABASE_URL` de desarrollo apunta a `root` de MySQL, no al usuario `app` acotado | Seguridad | — | Dirección técnica | `RESUELTA` |
@@ -112,6 +112,7 @@ Una fila por intento de fase. Conservar el historial: sirve para no repetir erro
 | 2026-09-25 | 3 | `COMPLETADA` | 1 sesión | 26/26 tareas · 24/24 verificaciones · 13/13 criterios. 47/47 checks con curl. DI-05 resuelto con **422** (no 409) y `../01` §7 CU-05 actualizado. 4 desviaciones (DI-22…DI-24 + DI-05) y **1 bug real**: la tolerancia de 24 h dejaba crear una evolución con fecha de mañana; pasó a comparar días calendario (DI-22). Cerrado B-5. |
 | 2026-09-25 | 4 | `COMPLETADA` | 1 sesión | 30/30 tareas · 19/19 verificaciones · 9/9 criterios. **30/30** checks con curl y **27/27** con Chromium real (Playwright, en directorio temporal, sin tocar el proyecto). DI-01 resuelta con la opción A (BFF). **5 bugs reales** encontrados al probar: el login no funcionaba (iba por el BFF, que lo rechaza), `/api/proxy` respondía 307 en vez de 401, el logout no borraba la cookie (204 con cuerpo descarta el Set-Cookie), dos controles con la misma etiqueta accesible, y el tema leído con setState en effect. Cerrado B-3. |
 | 2026-09-26 | 5 | `COMPLETADA` | 1 sesión | 36/36 tareas · 27/27 verificaciones · 13/13 criterios. **48/48** checks en Chromium real y **21/21** del cálculo de edad, ambos en directorio temporal (B-2: sin tests en el repo). DI-07 resuelta: 16 campos, se corrigió el "14" de `04` §5.4. Módulo de médicos voluntarios nuevo con `@Roles(COORDINADOR, ADMIN)` y baja lógica; filtro `estadoHistoria` agregado (sin migración). **4 bugs reales**, tres de ellos pérdida de datos clínicos: el backend **descartaba la nota del Bloque D** y la reemplazaba por un encabezado generado; el segundo ingreso mandaba cadenas vacías por leer `FormData` de inputs sin `name`; los bloques A y D compartían el campo `fecha`; y el `409` decía "Ya existe un registro con ese valor" sin nombrar el campo. Dispositivo de 5" **emulado** (375×667), no físico: la validación con la organización sigue pendiente. |
+| 2026-09-26 | 6 | `COMPLETADA` | 1 sesión | 23/23 tareas · 23/23 verificaciones · 8/8 criterios. **38/38** checks por HTTP y **29/29** en Chromium real (escritorio + Pixel 7), en directorio temporal. Rendimiento medido sobre **10.038 pacientes y 20.065 evoluciones**: `resumen` 68 ms, `recientes` 83 ms, `sin-contacto` 196 ms, todos bajo el límite de RNF-04/05. Caché probada por conteo de consultas a MySQL, no por tiempos: TTL=60 → 0 consultas en 4 repeticiones; TTL=0 → 3 por llamada. **Sin migración**: el `EXPLAIN` mostró que `ix_hc_fecha` e `ix_ev_fecha` alcanzan y que el barrido de tabla con rango de 365 días es la elección correcta del optimizador, no un índice faltante (ver `fase-06` §10.1). 7 desviaciones y **6 bugs reales**, dos de ellos de contrato: la query del listado armaba `?…&hasta=…?limit=20` con dos `?` y daba `400`, y los tipos del frontend asumían `medico: {apellido}` cuando el contrato devuelve `medicoNombre`, lo que crasheaba la pantalla. B-7 sigue abierta: filtro por operativo oculto. |
 
 ---
 
@@ -119,12 +120,12 @@ Una fila por intento de fase. Conservar el historial: sirve para no repetir erro
 
 | Dato | Valor |
 |---|---|
-| Fases completadas | 5 / 7 |
+| Fases completadas | 6 / 7 |
 | Tareas de implementación | 214 (27 + 44 + 26 + 30 + 36 + 23 + 28) |
-| Tareas ejecutadas | 163 / 214 (26 + 44 + 26 + 30 + 36 de las Fases 1 a 5, más 1 de la Fase 1 pendiente) |
-| Verificaciones | 178 → **278** (30 + 24 + 19 + 27) |
-| Criterios de cierre | 76 → **126** (15 + 13 + 9 + 13) |
-| Días de trabajo estimados restantes | 18 – 27 → **10 – 16** |
-| Requisitos funcionales cubiertos | 6 / 7 RF (RF-03.1, RF-03.2, RF-03.6, RF-04.1, RF-04.2, RF-07.1) |
+| Tareas ejecutadas | 186 / 214 (26 + 44 + 26 + 30 + 36 + 23, más 1 de la Fase 1 pendiente) |
+| Verificaciones | 178 → **301** (30 + 24 + 19 + 27 + 23) |
+| Criterios de cierre | 76 → **134** (15 + 13 + 9 + 13 + 8) |
+| Días de trabajo estimados restantes | 18 – 27 → **5 – 8** |
+| Requisitos funcionales cubiertos | **7 / 7 RF** (RF-03.1, RF-03.2, RF-03.6, RF-04.1, RF-04.2, RF-05, RF-07.1) |
 | Casos de uso verificados | 6 / 7 CU (CU-01, CU-02, CU-03, CU-04, CU-05, CU-06) |
-| Desviación acumulada | 3 → **28** (3 + 9 + 5 + 5 + 6) |
+| Desviación acumulada | 3 → **35** (3 + 9 + 5 + 5 + 6 + 7) |

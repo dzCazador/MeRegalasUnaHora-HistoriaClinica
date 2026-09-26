@@ -27,4 +27,20 @@ export class CatalogosService {
       orderBy: [{ orden: 'asc' }, { nombre: 'asc' }],
     });
   }
+
+  /**
+   * Puestos de atención. La tabla existe desde la migración inicial, con su
+   * `UNIQUE(nombre)`, pero el seed la deja vacía porque la organización todavía
+   * no definió la lista (B-7).
+   *
+   * Por eso la UI **oculta** el filtro por operativo cuando esta lista vuelve
+   * vacía, en vez de mostrar un desplegable sin opciones: un filtro que no se
+   * puede usar es ruido, y además sugiere que hay un filtro donde no lo hay.
+   */
+  async operativos() {
+    return this.prisma.operativo.findMany({
+      where: { activo: true },
+      orderBy: [{ nombre: 'asc' }],
+    });
+  }
 }

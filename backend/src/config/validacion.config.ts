@@ -68,4 +68,24 @@ export const configuracionValidacion = Joi.object({
     'string.min': '"ADMIN_PASSWORD" debe tener al menos 8 caracteres',
     'any.required': '"ADMIN_PASSWORD" es obligatoria: el seed no tiene valor por defecto',
   }),
+
+  // ── Panel de seguimiento (Fase 6) ─────────────────────────────────────────
+  // RN-12: días sin contacto a partir de los cuales un paciente entra en la
+  // alerta de abandono. El default es 90 porque un operativo de Salud Mental
+  // comunitaria consulta cada dos o tres meses: menos que eso marcaría como
+  // "abandonado" a alguien que volvió la semana pasada.
+  DASHBOARD_SIN_CONTACTO_DIAS: Joi.number().integer().min(1).max(3650).default(90).messages({
+    'number.base': '"DASHBOARD_SIN_CONTACTO_DIAS" debe ser un número entero de días',
+    'number.min': '"DASHBOARD_SIN_CONTACTO_DIAS" debe ser al menos 1',
+    'number.max': '"DASHBOARD_SIN_CONTACTO_DIAS" no puede superar 3650',
+  }),
+
+  // 0 desactiva la caché. La ventana es corta a propósito: el panel muestra
+  // actividad que cambia mientras se atiende, y un dato viejo por un minuto
+  // confunde más de lo que ayuda.
+  DASHBOARD_CACHE_TTL_SEGUNDOS: Joi.number().integer().min(0).max(3600).default(60).messages({
+    'number.base': '"DASHBOARD_CACHE_TTL_SEGUNDOS" debe ser un número entero',
+    'number.min': '"DASHBOARD_CACHE_TTL_SEGUNDOS" no puede ser negativo',
+    'number.max': '"DASHBOARD_CACHE_TTL_SEGUNDOS" no puede superar 3600',
+  }),
 });

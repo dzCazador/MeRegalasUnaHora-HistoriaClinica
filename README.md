@@ -14,8 +14,9 @@ atiende población en situación de calle. Implementa el formulario de admisión
 
 | | |
 |---|---|
-| **Fase actual** | 5 — Formulario de admisión y seguimiento ✅ |
-| **Progreso MVP** | 5 / 7 fases |
+| **Fase actual** | 6 — Dashboard de seguimiento y alerta de abandono ✅ |
+| **Próxima** | 7 — Impresión, exportación y auditoría |
+| **Progreso MVP** | 6 / 7 fases |
 | **Stack congelado** | Sí (`specs/02-arquitectura-tech.md`) |
 | **Base de datos** | MySQL 8 · `utf8mb4` · `utf8mb4_0900_ai_ci` |
 
@@ -166,7 +167,27 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 ADMIN_EMAIL="admin@organizacion.org"
 ADMIN_NOMBRE="Administrador"
 ADMIN_PASSWORD="<clave-del-admin-inicial>"
+DASHBOARD_SIN_CONTACTO_DIAS=90
+DASHBOARD_CACHE_TTL_SEGUNDOS=60
 ```
+
+**Sobre las dos variables del panel (Fase 6):**
+
+| Variable | Default | Qué hace |
+|---|---|---|
+| `DASHBOARD_SIN_CONTACTO_DIAS` | `90` | Días desde la última evolución a partir de los cuales un paciente cuenta como **sin contacto** (RN-12). El panel escribe el umbral en pantalla, así que si cambia acá cambia en la UI sin tocar código. |
+| `DASHBOARD_CACHE_TTL_SEGUNDOS` | `60` | Ventana de la caché en memoria del resumen. `0` la desactiva. El caché vive en el proceso del backend: con varias instancias hay que usar Redis (fuera del MVP). |
+
+> **El umbral de 90 días es un default, no una decisión de la organización.** Es el punto de
+> `RN-12` y todavía tiene que confirmarlo quien decide. Cambiarlo es cambiar una variable de
+> ambiente, sin migración.
+>
+> Con `DASHBOARD_SIN_CONTACTO_DIAS=30`, los pacientes con 45 días sin volver pasan a aparecer en
+> la alerta. Sirve para probar el comportamiento.
+>
+> La caché se verificó **contando consultas a MySQL**, no comparando milisegundos: con la base
+> chica una respuesta cacheada y sin cachear dan los mismos 6 ms. Con `TTL=60`, cuatro
+> peticiones idénticas dejan de consultar la base por completo.
 
 **`frontend/.env.local`**
 
@@ -215,6 +236,7 @@ cd frontend && npm run dev          # http://localhost:3001
 | Documentación | abrir `http://localhost:4001/api` | Swagger UI |
 | Frontend vivo | abrir `http://localhost:3001` | redirige a `/login` |
 | Autenticación | ver abajo | token JWT |
+| Panel | abrir `/dashboard` | 3 indicadores, gráfico mensual, alerta de abandono |
 
 ```bash
 curl -s -X POST http://localhost:4001/api/auth/login \
@@ -222,10 +244,20 @@ curl -s -X POST http://localhost:4001/api/auth/login \
   -d '{"email":"<ADMIN_EMAIL>","password":"<ADMIN_PASSWORD>"}'
 
 curl -s -H "Authorization: Bearer <token>" http://localhost:4001/api/pacientes
+
+# Fase 6: el resumen del período y la alerta de abandono
+curl -s -H "Authorization: Bearer <token>" \
+  "http://localhost:4001/api/dashboard/resumen?desde=2026-08-27&hasta=2026-09-25"
+
+curl -s -H "Authorization: Bearer <token>" \
+  "http://localhost:4001/api/dashboard/sin-contacto?limit=5"
 ```
 
 `POST /api/auth/login` y `GET /api/health` son los **únicos endpoints públicos**. Cualquier otro
 devuelve `401` sin un token válido.
+
+> `GET /api/dashboard/sin-contacto` **no** acepta `desde`/`hasta` a propósito: la alerta no se recorta
+> con el rango de la pantalla, la define `DASHBOARD_SIN_CONTACTO_DIAS`. Mandarlos devuelve `400`.
 
 ---
 

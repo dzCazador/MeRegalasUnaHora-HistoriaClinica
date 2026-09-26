@@ -2,6 +2,7 @@ import { aQuery, pedir } from './api';
 import type {
   EstadoCivil,
   Nacionalidad,
+  OperativoRef,
   Representante,
   TipoDocumento,
 } from '@/types/dominio';
@@ -21,6 +22,21 @@ export function nacionalidades(): Promise<Nacionalidad[]> {
 
 export function tiposDocumento(): Promise<TipoDocumento[]> {
   return pedir<TipoDocumento[]>('/catalogos/tipos-documento');
+}
+
+/**
+ * Puestos de atención, para el filtro por operativo del panel.
+ *
+ * **B-7 sigue abierta**: la organización todavía no definió la lista, así que
+ * `operativos` viene vacía. El panel usa esto para decidir si muestra el filtro:
+ * con la lista vacía lo oculta, en lugar de ofrecer un desplegable sin opciones.
+ * Cuando B-7 se cierre, el endpoint empieza a devolver datos y el filtro aparece
+ * sin tocar la página.
+ *
+ * Sólo los activos: un operativo dado de baja no es una opción de filtrado.
+ */
+export function operativos(): Promise<OperativoRef[]> {
+  return pedir<OperativoRef[]>('/catalogos/operativos');
 }
 
 /**
