@@ -112,6 +112,10 @@ export class PacientesService {
   async crear(dto: CreatePacienteDto, autor: UsuarioAutenticado): Promise<PacienteConCatalogos> {
     const datos = this.construirDatos(dto);
 
+    // Antes de abrir la transacción: si el catálogo no existe, es un `400` y no
+    // hace falta rollback de nada.
+    await this.validarReferencias(datos);
+
     return this.prisma.$transaction(async (tx) => {
       const paciente = await tx.paciente.create({
         // `apellido`, `nombre` y `edad` son obligatorios en `CreatePacienteDto`
@@ -161,6 +165,11 @@ export class PacientesService {
     const fecha = dto.fecha ? new Date(dto.fecha) : new Date();
 
     exigirFechaNoFutura(fecha, 'fecha del ingreso');
+
+    // Antes de abrir la transacción. Dentro, el error de FK sería un 500 sin
+    // nombre de campo y además obligaría a revertir las tres inserciones.
+    await this.validarReferencias(datos);
+    await this.validarHistoria(dto);
 
     const resultado = await this.prisma.$transaction(async (tx) => {
       // 1. Paciente. DI-02: numeroHistoria se completa con el id ya asignado.
@@ -290,11 +299,125 @@ export class PacientesService {
       throw new BadRequestException('No se envió ningún campo para actualizar');
     }
 
+    await this.validarReferencias(datos);
+
     return this.prisma.paciente.update({
       where: { id },
       data: datos,
       include: INCLUIR_CATALOGOS,
     });
+  }
+
+  /**
+   * Que el representante y el operativo existan antes de abrir la transacción del
+   * alta. Mismo motivo que `validarReferencias`: una FK rota acá es un MySQL `1452`
+   * que llega sin código de Prisma y terminaba en un `500` genérico, con la
+   * transacción entera para revertir.
+   */
+  private async validarHistoria(dto: CreatePacienteCompletoDto): Promise<void> {
+    if (dto.representanteId) {
+      // `Representante` no tiene `activo`: no tiene baja lógica, se borra o queda.
+      const existe = await this.prisma.representante.findUnique({
+        where: { id: BigInt(dto.representanteId) },
+        select: { id: true },
+      });
+
+      if (existe === null) {
+        throw new BadRequestException('El representante indicado no existe');
+      }
+    }
+
+    // El operativo **no** se valida contra la tabla: mientras B-7 siga abierta
+    // está vacía, y un `operativoId` que no llega es el caso normal, no un error.
+    if (dto.operativoId) {
+      const existe = await this.prisma.operativo.findUnique({
+        where: { id: BigInt(dto.operativoId) },
+        select: { activo: true },
+      });
+
+      if (existe === null) {
+        throw new BadRequestException('El puesto de atención indicado no existe');
+      }
+
+      if (!existe.activo) {
+        throw new BadRequestException('El puesto de atención indicado está dado de baja');
+      }
+    }
+  }
+
+  /**
+   * Que las claves foráneas de los catálogos apunten a algo que exista.
+   *
+   * Sin esto, un `nacionalidadId: 0` llega hasta MySQL y vuelve como error `1216`
+   * (`Cannot add or update a child row`), que el driver reporta como
+   * `PrismaClientUnknownRequestError`: **no** lo agarra el filtro de la Fase 2, que
+   * sólo conoce `PrismaClientKnownRequestError`, y el usuario recibe un `500` con un
+   * mensaje genérico. Ni él ni quien atiende el teléfono pueden deducir que el
+   * problema es un id de catálogo.
+   *
+   * Son dos consultas en una operación de volumen bajo (corregir un dato de un
+   * paciente), a cambio de un error que dice **qué** corregir. Los ids también se
+   * limpian aquí: un `''` que llegara como texto se convertiría en `0n` o en un
+   * `SyntaxError` de `BigInt`.
+   */
+  private async validarReferencias(datos: DatosPaciente): Promise<void> {
+    /**
+     * El mensaje va entero, armado con su artículo, en vez de componerse con un
+     * `El ${campo} indicado`: "nacionalidad" es femenino y salía "El nacionalidad
+     * indicado", que es el tipo de detalle que hace que un mensaje de error deje de
+     * leerse.
+     */
+    const revisar = async (
+      existe: { activo: boolean } | null,
+      mensajes: { noExiste: string; dadoDeBaja: string },
+    ): Promise<void> => {
+      if (existe === null) {
+        throw new BadRequestException(mensajes.noExiste);
+      }
+
+      if (!existe.activo) {
+        throw new BadRequestException(mensajes.dadoDeBaja);
+      }
+    };
+
+    if (datos.tipoDocumentoId !== undefined && datos.tipoDocumentoId !== null) {
+      await revisar(
+        await this.prisma.tipoDocumento.findUnique({
+          where: { id: datos.tipoDocumentoId },
+          select: { activo: true },
+        }),
+        {
+          noExiste: 'El tipo de documento indicado no existe',
+          dadoDeBaja: 'El tipo de documento indicado está dado de baja',
+        },
+      );
+    }
+
+    if (datos.estadoCivilId !== undefined && datos.estadoCivilId !== null) {
+      await revisar(
+        await this.prisma.estadoCivil.findUnique({
+          where: { id: datos.estadoCivilId },
+          select: { activo: true },
+        }),
+        {
+          noExiste: 'El estado civil indicado no existe',
+          dadoDeBaja: 'El estado civil indicado está dado de baja',
+        },
+      );
+    }
+
+    if (datos.nacionalidadId !== undefined && datos.nacionalidadId !== null) {
+      await revisar(
+        await this.prisma.nacionalidad.findUnique({
+          where: { id: datos.nacionalidadId },
+          select: { activo: true },
+        }),
+        {
+          noExiste: 'La nacionalidad indicada no existe',
+          dadoDeBaja: 'La nacionalidad indicada está dada de baja',
+        },
+      );
+    }
   }
 
   /**

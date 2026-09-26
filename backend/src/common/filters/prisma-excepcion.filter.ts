@@ -97,6 +97,37 @@ function mensajeDeConflicto(excepcion: Prisma.PrismaClientKnownRequestError): st
   return undefined;
 }
 
+/**
+ * Códigos de MySQL que **no** llegan como `PrismaClientKnownRequestError`.
+ *
+ * Cuando el driver no puede mapear el error a un código de Prisma lo reporta como
+ * `PrismaClientUnknownRequestError`, y un filtro con `@Catch(PrismaClientKnownRequestError)`
+ * no lo agarra: se escapa al manejador genérico y termina en un `500` sin
+ * explicación. Son claves foráneas y no tienen por qué ser un `500`.
+ */
+const ERRORES_DESCONOCIDOS: { codigo: string; status: HttpStatus; mensaje: string }[] = [
+  {
+    codigo: '1216',
+    status: HttpStatus.BAD_REQUEST,
+    mensaje: 'Uno de los datos relacionados no existe. Revisá los datos de catálogo.',
+  },
+  {
+    codigo: '1452',
+    status: HttpStatus.BAD_REQUEST,
+    mensaje: 'Uno de los datos relacionados no existe. Revisá los datos de catálogo.',
+  },
+  {
+    codigo: '1451',
+    status: HttpStatus.CONFLICT,
+    mensaje: 'No se puede eliminar: el registro tiene datos asociados',
+  },
+];
+
+/** El `code` de MySQL viaja anidado en el mensaje del driver, no como campo propio. */
+function codigoDeMySql(mensaje: string): string | undefined {
+  return ERRORES_DESCONOCIDOS.find((entrada) => mensaje.includes(entrada.codigo))?.codigo;
+}
+
 @Catch(Prisma.PrismaClientKnownRequestError)
 export class PrismaExcepcionFilter implements ExceptionFilter {
   private readonly logger = new Logger(PrismaExcepcionFilter.name);
@@ -141,5 +172,52 @@ export class PrismaExcepcionFilter implements ExceptionFilter {
     respuesta
       .status(traduccion.status)
       .json(construirCuerpoError(peticion, excepcion.code, mensaje));
+  }
+}
+
+/**
+ * Red de seguridad para los errores que Prisma no sabe nombrar.
+ *
+ * Un id de catálogo inexistente, por ejemplo, produce MySQL `1216` y el driver lo
+ * entrega como `PrismaClientUnknownRequestError`. Sin este filtro el médico ve un
+ * `500` con "Ocurrió un error inesperado" y no tiene forma de saber que el problema
+ * es un dato que eligió del desplegable.
+ *
+ * Se registra el error completo en el log del servidor (el `code` de MySQL puede
+ * ser cualquier cosa y no se filtra al cliente) y al usuario se le da un `400` que
+ * dice qué revisar.
+ */
+@Catch(Prisma.PrismaClientUnknownRequestError)
+export class PrismaDesconocidaExcepcionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(PrismaDesconocidaExcepcionFilter.name);
+
+  catch(excepcion: Prisma.PrismaClientUnknownRequestError, host: ArgumentsHost): void {
+    const contexto = host.switchToHttp();
+    const respuesta = contexto.getResponse<Response>();
+    const peticion = contexto.getRequest<Request>();
+
+    const codigo = codigoDeMySql(excepcion.message);
+    const conocida = codigo === undefined ? undefined : ERRORES_DESCONOCIDOS.find((e) => e.codigo === codigo);
+
+    this.logger.warn(
+      `${peticion.method} ${peticion.originalUrl} → error de driver sin código de Prisma${codigo ? ` (MySQL ${codigo})` : ''}`,
+      excepcion.message,
+    );
+
+    if (conocida !== undefined) {
+      respuesta
+        .status(conocida.status)
+        .json(construirCuerpoError(peticion, 'REFERENCIA_INVALIDA', conocida.mensaje));
+
+      return;
+    }
+
+    respuesta.status(HttpStatus.INTERNAL_SERVER_ERROR).json(
+      construirCuerpoError(
+        peticion,
+        'ERROR_INTERNO',
+        'Ocurrió un error inesperado. Intentá nuevamente.',
+      ),
+    );
   }
 }

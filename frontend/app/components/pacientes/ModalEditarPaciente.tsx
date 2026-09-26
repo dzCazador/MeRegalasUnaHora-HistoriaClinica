@@ -40,6 +40,30 @@ function aFechaInput(iso: string | null): string {
   return iso === null ? '' : iso.slice(0, 10);
 }
 
+/**
+ * Lee un `<select>` de catálogo.
+ *
+ * La opción de "sin datos" tiene `value=""`, y `Number('')` es **`0`**, no `NaN`.
+ * Mandar `0` a una clave foránea produce `0n` en el backend y un error de FK con
+ * MySQL 1216, que el usuario ve como un error de servidor sin más explicación. Por
+ * eso un vacío tiene que viajar como `null` y no como un número.
+ *
+ * Cualquier valor que no sea un entero positivo también vuelve `null`: el
+ * backend valida que el id exista y devuelve un `400` con el nombre del campo, que
+ * es mucho más útil que un `500`.
+ */
+function idDeCatalogo(valor: FormDataEntryValue | null): number | null {
+  const texto = String(valor ?? '').trim();
+
+  if (texto === '') {
+    return null;
+  }
+
+  const id = Number(texto);
+
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 export function ModalEditarPaciente({
   paciente,
   abierto,
@@ -78,8 +102,8 @@ export function ModalEditarPaciente({
           documento: documento === '' ? undefined : documento,
           edad: Number(datos.get('edad')),
           sexo: String(datos.get('sexo') ?? 'SIN_DATOS') as Paciente['sexo'],
-          estadoCivilId: Number(datos.get('estadoCivilId')),
-          nacionalidadId: Number(datos.get('nacionalidadId')),
+          estadoCivilId: idDeCatalogo(datos.get('estadoCivilId')),
+          nacionalidadId: idDeCatalogo(datos.get('nacionalidadId')),
           fechaNacimiento:
             String(datos.get('fechaNacimiento') ?? '') === ''
               ? undefined

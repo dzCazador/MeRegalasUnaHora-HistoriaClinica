@@ -154,11 +154,22 @@ export interface PacienteDto {
   apellido: string;
   nombre: string;
   documento?: string;
-  tipoDocumentoId?: number;
+  /**
+   * Los tres ids de catálogo aceptan **`null`**, no sólo `undefined`.
+   *
+   * `null` es "sin datos": es un valor legítimo y explícito del formulario, y lo
+   * dice el propio proyecto (*"la ausencia de un dato es un dato explícito"*). El
+   * backend lo acepta porque `@IsOptional()` deja pasar `null` sin validarlo, y lo
+   * traduce a `null` en la columna.
+   *
+   * La diferencia importa: mandar `undefined` en un `PATCH` deja la columna como
+   * está, y mandar `0` —lo que sale de `Number('')`— rompe la clave foránea.
+   */
+  tipoDocumentoId?: number | null;
   edad: number;
   sexo?: Sexo;
-  estadoCivilId?: number;
-  nacionalidadId?: number;
+  estadoCivilId?: number | null;
+  nacionalidadId?: number | null;
   fechaNacimiento?: string;
   domicilio?: string;
   telefono?: string;

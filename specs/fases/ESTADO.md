@@ -127,6 +127,51 @@ abriera la edición, que era lo que el código hacía.
 Verificado con **26/26** checks en Chromium (escritorio y Pixel 7): recorrido completo con mouse,
 con teclado y con toques. Sin regresión en el panel (29/29) ni en la API (38/38).
 
+### 3.3 Corrección — error 500 al modificar un paciente con un catálogo vacío
+
+**Reportado el 2026-09-26** al modificar un paciente desde `/pacientes` → *Modificar* dejando el
+estado civil o la nacionalidad en *"sin datos"*:
+
+```text
+PATCH /api/pacientes/61 → PrismaClientUnknownRequestError
+MySQL 1216: Cannot add or update a child row: a foreign key constraint fails
+```
+
+Eran **tres defectos encadenados**, y el último enmascaraba a los otros dos:
+
+| # | Dónde | Qué pasaba |
+|---|---|---|
+| 1 | `ModalEditarPaciente.tsx` | `Number(datos.get('estadoCivilId'))`. La opción de "sin datos" tiene `value=""`, y **`Number('')` es `0`**, no `NaN`. Mandaba `0` donde debía mandar `null`. |
+| 2 | `pacientes.service.ts` | No validaba que el id de catálogo existiera: `0` se convertía en `0n` y llegaba hasta MySQL. |
+| 3 | `prisma-excepcion.filter.ts` | El filtro de la Fase 2 sólo caza `PrismaClientKnownRequestError`. Este error llega como `PrismaClientUnknownRequestError`, así que **no lo agarraba** y se caía en el `500` genérico. |
+
+El mensaje que veía el médico era "Ocurrió un error inesperado", que no permite deducir que el
+problema es un desplegable. Y `Number('')` → `0` es la misma trampa que la #9 de `AGENTS.md`
+(`''` en vez de `NULL`), pero sobre una **clave foránea**: donde un `''` en un `UNIQUE` colisiona,
+un `0` en una FK revienta la fila.
+
+El alta de admisión **no estaba afectada**: valida con `zod` y `numeroEnteroOpcional(1, …)`, que
+convierte el vacío en `undefined` y además rechaza el `0` por el mínimo. El modal no tiene `zod`,
+por eso era el único camino con el problema.
+
+Qué se corrigió
+
+- El modal manda `null` cuando el catálogo está vacío, mediante un helper que además rechaza
+  cualquier valor que no sea un entero positivo.
+- El service valida que el catálogo exista y esté activo, en `crear`, `actualizar` y
+  `crearCompleto`, **antes** de abrir la transacción: un `400` que nombra el campo, en vez de un
+  `500` que obliga a revertir tres inserciones.
+- `PrismaDesconocidaExcepcionFilter` mapea los códigos de MySQL que el driver no traduce a un
+  código de Prisma (1216, 1452, 1451) a `400`/`409` con un mensaje accionable. Es la red de
+  seguridad para que ningún error de clave foránea futuro vuelva a ser un `500` opaco.
+- `PacienteDto` del frontend ahora admite `number | null` en los tres ids de catálogo, que es lo
+  que el backend acepta (`@IsOptional()` deja pasar `null`).
+
+Verificado con **13/13** checks en Chromium sobre el recorrido reportado, mirando el cuerpo de la
+petición en la red y no sólo lo que se ve en pantalla: el `PATCH` responde **200** (antes 500), el
+cuerpo lleva `"nacionalidadId": null` y no `0`, y la base queda en `null`. Elegir un catálogo real
+sigue funcionando. Sin regresión: arquitectura 26/26, panel 29/29, API 38/38.
+
 ---
 
 ## 4. Registro de ejecuciones
